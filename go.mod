@@ -1,6 +1,6 @@
 module k8xauth
 
-go 1.23.3
+go 1.25.1
 
 require (
 	cloud.google.com/go/compute/metadata v0.8.0
@@ -68,7 +68,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.step.sm/crypto v0.56.0
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/oauth2 v0.30.0
+	golang.org/x/oauth2 v0.31.0
 	golang.org/x/text v0.28.0 // indirect
 	google.golang.org/api v0.248.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
