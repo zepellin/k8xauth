@@ -5,10 +5,10 @@ go 1.23.3
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
-	github.com/aws/aws-sdk-go-v2 v1.32.8
-	github.com/aws/aws-sdk-go-v2/config v1.28.8
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.49
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.4
+	github.com/aws/aws-sdk-go-v2 v1.38.3
+	github.com/aws/aws-sdk-go-v2/config v1.31.6
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.10
+	github.com/aws/aws-sdk-go-v2/service/sts v1.38.2
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/spf13/cobra v1.8.1
 	github.com/trhyo/azidentity-static-source v0.0.4
@@ -22,7 +22,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -49,14 +49,14 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.22
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.26 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.26 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.24.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.7 // indirect
-	github.com/aws/smithy-go v1.22.1 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.6
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.29.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.2 // indirect
+	github.com/aws/smithy-go v1.23.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
