@@ -26,5 +26,8 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           binary_name: "k8xauth"
-          ldflags: "-X k8xauth/cmd.version=${{ env.RELEASE_VERSION }}"
+          ldflags: >-
+            -s -w
+            -X k8xauth/cmd.version=${{ env.RELEASE_VERSION }}
+          build_flags: "-trimpath"
           compress_assets: "OFF"
