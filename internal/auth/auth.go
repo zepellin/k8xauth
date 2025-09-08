@@ -11,7 +11,7 @@ import (
 
 	"k8xauth/internal/logger"
 
-	"go.step.sm/crypto/jose"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
 )
 
@@ -126,14 +126,9 @@ func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
 	}
 	token := tk.AccessToken
 
-	tok, err := jose.ParseJWS(token)
+	_, err = jwt.ParseSigned(token, nil) // parse without verification
 	if err != nil {
 		return errors.New("error parsing token: " + err.Error())
-	}
-
-	token, err = tok.CompactSerialize()
-	if err != nil {
-		return errors.New("error serializing token: " + err.Error())
 	}
 
 	parts := strings.Split(token, ".")
