@@ -11,7 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
 )
 
@@ -33,7 +33,7 @@ func EksAWSIRSATokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 		fmt.Printf("error retrieving creds, %v", err)
 	}
 
-	t, err := jwt.ParseSigned(string(token))
+	t, err := jwt.ParseSigned(string(token), nil) // parse without verification
 	if err != nil {
 		panic(err)
 	}
