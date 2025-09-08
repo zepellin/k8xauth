@@ -42,7 +42,7 @@ func Execute() {
 func init() {
 	RootCmd.PersistentFlags().String("authsource", "all", "Authentication source to use [gke|eks|aks|all] (optional)")
 	RootCmd.PersistentFlags().Bool("printsourceauthtoken", false, "Print source authentication token, useful for debugging. May expose sensitive data")
-	RootCmd.PersistentFlags().String("loglevel", "info", "Set log level (optional)")
+	RootCmd.PersistentFlags().String("loglevel", "info", "Set log level [debug|info|warn|error] (optional)")
 	RootCmd.PersistentFlags().String("logformat", "text", "Set log format [text|json] (optional)")
 	RootCmd.PersistentFlags().String("logfile", "", "Set log file. If not set logs are sent to standard output (optional)")
 }
