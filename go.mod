@@ -66,7 +66,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/net v0.44.0 // indirect
-	golang.org/x/oauth2 v0.31.0
+	golang.org/x/oauth2 v0.32.0
 	golang.org/x/text v0.29.0 // indirect
 	google.golang.org/api v0.251.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
