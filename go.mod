@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.16
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.6
 	github.com/go-jose/go-jose/v4 v4.1.3
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/trhyo/azidentity-static-source v0.0.4
 	k8s.io/apimachinery v0.34.0
 	k8s.io/client-go v0.34.0
