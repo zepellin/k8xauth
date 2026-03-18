@@ -11,7 +11,6 @@ import (
 
 	"k8xauth/internal/logger"
 
-	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
 )
 
@@ -52,7 +51,7 @@ func New(options *Options) (*clientAuth, error) {
 
 	if options.AuthType == "gke" || options.AuthType == "all" {
 		logger.Log.Debug("Source Authentication - Trying GKE Workload Identity")
-		clientAuth, err := gkeWorkloadIdentityAuth(ctx)
+		clientAuth, err := gkeWorkloadIdentityAuth(ctx, options.Audience)
 		if clientAuth != nil && err == nil {
 			logger.Log.Debug("Source Authentication - Successfully retrieved GKE Workload Identity token")
 			return clientAuth, nil
@@ -70,7 +69,7 @@ func New(options *Options) (*clientAuth, error) {
 
 	if options.AuthType == "aks" || options.AuthType == "all" {
 		logger.Log.Debug("Source Authentication - Trying AKS Workload Identity")
-		clientAuth, err := aksWorkloadIdentityAuth(ctx)
+		clientAuth, err := aksWorkloadIdentityAuth(ctx, options.Audience)
 		if clientAuth != nil && err == nil {
 			logger.Log.Debug("Source Authentication - Successfully retrieved AKS Workload Identity token")
 			return clientAuth, nil
@@ -126,11 +125,6 @@ func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
 	}
 	token := tk.AccessToken
 
-	_, err = jwt.ParseSigned(token, nil) // parse without verification
-	if err != nil {
-		return errors.New("error parsing token: " + err.Error())
-	}
-
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return errors.New("error decoding token: JWT must have three parts")
@@ -156,6 +150,10 @@ func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
 		return errors.New("error marshaling token data")
 	}
 
-	fmt.Println(string(b))
+	_, err = fmt.Fprintln(w, string(b))
+	if err != nil {
+		return errors.New("error writing token data: " + err.Error())
+	}
+
 	return nil
 }

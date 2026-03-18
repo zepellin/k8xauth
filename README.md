@@ -34,9 +34,11 @@ Currently this application supports AWS, Azure and Google Cloud Platform, with f
   - AWS/EKS via IAM role [OIDC trust policy](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
   - Azure/AKS via [Federated Credentials](https://azure.github.io/azure-workload-identity/docs/topics/federated-identity-credential.html#federated-identity-credential-for-a-user-assigned-managed-identity-1)
 
+The same source identities can also be used to emit a generic OIDC ExecCredential without any provider-specific exchange. See [generic OIDC usage](/docs/generic-oidc.md).
+
 ### Installation
 
-Download precompiled binary for your platform from the repository' [releases page](https://github.com/trhyo/k8xauth/releases).
+Download precompiled binary for your platform from the repository' [releases page](https://github.com/zepellin/k8xauth/releases).
 
 ### Usage
 
@@ -71,7 +73,22 @@ k8xauth eks \
 k8xauth aks \
 --tenantid "12345678-1234-1234-1234-123456789abc" \
 --clientid "12345678-1234-1234-1234-123456789abc"
+
+# Fetch generic OIDC credentials
+k8xauth generic-oidc \
+--authsource "gke"
+
+# Fetch generic OIDC credentials with a custom audience
+k8xauth generic-oidc \
+--authsource "aks" \
+--audience "api://custom-app/.default"
 ```
+
+The `generic-oidc` command returns the source OIDC token as-is in an ExecCredential object. When `--audience` is omitted, the existing source defaults are preserved:
+
+- GKE source defaults to audience `gcp`
+- AKS source defaults to scope `api://AzureADTokenExchange/.default`
+- EKS source uses the projected IRSA token as provided by Kubernetes
 
 #### With kubectl
 
@@ -92,7 +109,29 @@ Kubectl can be configured to use exec credential plugin:
         - "us-east-2"
       command: k8xauth
       env: null
-      installHint: "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth#installation"
+      installHint: "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth#installation"
+      interactiveMode: IfAvailable
+      provideClusterInfo: true
+...
+```
+
+For a generic OIDC destination that accepts the source token directly:
+
+```yaml
+...
+- name: generic_oidc_cluster
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: k8xauth
+      args:
+        - generic-oidc
+        - --authsource
+        - gke
+        - --audience
+        - my-target-audience
+      env: null
+      installHint: "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth#installation"
       interactiveMode: IfAvailable
       provideClusterInfo: true
 ...

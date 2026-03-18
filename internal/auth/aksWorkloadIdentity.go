@@ -12,10 +12,17 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	defaultAzureTokenExchangeScope = "api://AzureADTokenExchange/.default"
+)
+
 // GetAKSTokenSource returns an OAuth2 token source for Azure Kubernetes Service (AKS) authentication.
 // It uses the default Azure credentials to obtain a token and creates an OAuth2 token source using the obtained token.
-func GetAKSTokenSource(ctx context.Context) (oauth2.TokenSource, error) {
+func GetAKSTokenSource(ctx context.Context, audience string) (oauth2.TokenSource, error) {
 	options := azidentity.WorkloadIdentityCredentialOptions{}
+	if audience == "" {
+		audience = defaultAzureTokenExchangeScope
+	}
 
 	creds, err := azidentity.NewWorkloadIdentityCredential(&options)
 	if err != nil {
@@ -23,7 +30,7 @@ func GetAKSTokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 	}
 
 	token, err := creds.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"api://AzureADTokenExchange/.default"},
+		Scopes: []string{audience},
 	})
 	if err != nil {
 		return nil, err
@@ -39,8 +46,8 @@ func GetAKSTokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 	return tokenSource, nil
 }
 
-func aksWorkloadIdentityAuth(ctx context.Context) (*clientAuth, error) {
-	azureTokenSource, err := GetAKSTokenSource(ctx)
+func aksWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth, error) {
+	azureTokenSource, err := GetAKSTokenSource(ctx, audience)
 	if azureTokenSource != nil && err == nil {
 		identitiyToken, err := azureTokenSource.Token()
 		if err != nil {
