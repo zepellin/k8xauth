@@ -6,6 +6,31 @@ For the usage with ArgoCD the binary has to be available in the `argocd-server` 
 
 The binary can be installed via [custom ArgoCD images](https://argo-cd.readthedocs.io/en/stable/operator-manual/custom_tools/#byoi-build-your-own-image), or [added via volume mounts](https://argo-cd.readthedocs.io/en/stable/operator-manual/custom_tools/#adding-tools-via-volume-mounts) and placed in the `argocd-server` and `argocd-application-controller` deployments/pods.
 
+### Option 1: Image Volume (Kubernetes 1.35+)
+
+On Kubernetes 1.35+ clusters you can use an [image volume](/docs/image-volumes.md) to mount the binary directly — no init containers or network downloads required.
+
+Example for [ArgoCD official Helm Chart](https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml#L655-L675):
+
+```yaml
+controller and server:
+  ...
+  volumeMounts:
+   - mountPath: /usr/local/bin/k8xauth
+     name: k8xauth
+     subPath: k8xauth
+
+  volumes:
+   - name: k8xauth
+     image:
+       reference: ghcr.io/zepellin/k8xauth:v0.2.2
+       pullPolicy: IfNotPresent
+```
+
+### Option 2: Init Container
+
+For clusters running Kubernetes < 1.35, use an init container to download the binary:
+
 Example for [ArgoCD official Helm Chart](https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml#L655-L675):
 
 ```yaml
