@@ -23,7 +23,7 @@ controller and server:
   volumes:
    - name: k8xauth
      image:
-       reference: ghcr.io/zepellin/k8xauth:v0.2.2
+       reference: ghcr.io/zepellin/k8xauth:v0.2.4
        pullPolicy: IfNotPresent
 ```
 

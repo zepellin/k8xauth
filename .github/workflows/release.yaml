@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   releases-matrix:
@@ -75,6 +76,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
+        id: build-push
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -83,3 +85,12 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:${{ env.RELEASE_VERSION }}
             ghcr.io/${{ github.repository }}:latest
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+        run: |
+          cosign sign --yes "ghcr.io/${{ github.repository }}@${DIGEST}"

@@ -7,7 +7,7 @@ Starting with Kubernetes 1.35, [Image Volumes](https://kubernetes.io/docs/concep
 The `k8xauth` binary is published as a minimal (`FROM scratch`) multi-architecture OCI image to GitHub Container Registry on every release:
 
 ```text
-ghcr.io/zepellin/k8xauth:<version>   (e.g. ghcr.io/zepellin/k8xauth:v0.2.2)
+ghcr.io/zepellin/k8xauth:<version>   (e.g. ghcr.io/zepellin/k8xauth:v0.2.4)
 ghcr.io/zepellin/k8xauth:latest
 ```
 
@@ -40,7 +40,7 @@ spec:
   volumes:
     - name: k8xauth
       image:
-        reference: ghcr.io/zepellin/k8xauth:v0.2.2
+        reference: ghcr.io/zepellin/k8xauth:v0.2.4
         pullPolicy: IfNotPresent
 ```
 
@@ -68,13 +68,60 @@ spec:
       volumes:
         - name: k8xauth
           image:
-            reference: ghcr.io/zepellin/k8xauth:v0.2.2
+            reference: ghcr.io/zepellin/k8xauth:v0.2.4
             pullPolicy: IfNotPresent
 ```
 
 ### ArgoCD with Image Volumes
 
 For ArgoCD-specific examples using image volumes instead of init containers, see [Usage with ArgoCD](/docs/argocd.md).
+
+## Image Signature Verification
+
+Every release image is signed using [Sigstore cosign](https://docs.sigstore.dev/cosign/overview/) keyless signing with the GitHub Actions OIDC identity. This allows you to verify the image provenance before use.
+
+### Verify manually with cosign
+
+```bash
+cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp https://github.com/zepellin/k8xauth/ \
+  ghcr.io/zepellin/k8xauth:v0.2.4
+```
+
+### Verify automatically with Kyverno
+
+Apply a `ClusterPolicy` to enforce that only signed `k8xauth` images (including image volumes) are admitted:
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-k8xauth-image
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: verify-k8xauth-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/zepellin/k8xauth:*"
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subjectRegExp: https://github.com/zepellin/k8xauth/.*
+                    rekor:
+                      url: https://rekor.sigstore.dev
+```
+
+> [!NOTE]
+> Kyverno 1.12+ supports verifying signatures on images referenced in `volumes[].image.reference` (image volumes), not only container images. Make sure your Kyverno version includes this support.
 
 ## Advantages over init containers
 
