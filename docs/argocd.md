@@ -16,7 +16,7 @@ controller and server:
      image: alpine:3
      command: [sh, -c]
      args:
-       - wget -qO k8xauth https://github.com/trhyo/k8xauth/releases/download/v0.1.3/k8xauth-v0.1.3-linux-amd64 && chmod +x k8xauth && mv k8xauth /argo-k8xauth/
+       - wget -qO k8xauth https://github.com/zepellin/k8xauth/releases/download/v0.1.6/k8xauth-v0.1.6-linux-amd64 && chmod +x k8xauth && mv k8xauth /argo-k8xauth/
      volumeMounts:
        - mountPath: /argo-k8xauth
          name: argo-k8xauth
@@ -62,7 +62,7 @@ stringData:
             "us-east-2"
         ],
         "apiVersion": "client.authentication.k8s.io/v1beta1",
-        "installHint": "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth"
+        "installHint": "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth"
       },
       "tlsClientConfig": {
         "insecure": false,
@@ -98,7 +98,7 @@ stringData:
             "my-wli-fed-provider-id"
         ],
         "apiVersion": "client.authentication.k8s.io/v1beta1",
-        "installHint": "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth"
+        "installHint": "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth"
       },
       "tlsClientConfig": {
         "insecure": false,
@@ -132,7 +132,7 @@ stringData:
             "12345678-1234-1234-1234-123456789abc"
         ],
         "apiVersion": "client.authentication.k8s.io/v1beta1",
-        "installHint": "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth"
+        "installHint": "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth"
       },
       "tlsClientConfig": {
         "insecure": false,
@@ -168,7 +168,7 @@ stringData:
             "my-target-audience"
         ],
         "apiVersion": "client.authentication.k8s.io/v1beta1",
-        "installHint": "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth"
+        "installHint": "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth"
       },
       "tlsClientConfig": {
         "insecure": false,

@@ -38,7 +38,7 @@ The same source identities can also be used to emit a generic OIDC ExecCredentia
 
 ### Installation
 
-Download precompiled binary for your platform from the repository' [releases page](https://github.com/trhyo/k8xauth/releases).
+Download precompiled binary for your platform from the repository' [releases page](https://github.com/zepellin/k8xauth/releases).
 
 ### Usage
 
@@ -109,7 +109,7 @@ Kubectl can be configured to use exec credential plugin:
         - "us-east-2"
       command: k8xauth
       env: null
-      installHint: "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth#installation"
+      installHint: "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth#installation"
       interactiveMode: IfAvailable
       provideClusterInfo: true
 ...
@@ -131,7 +131,7 @@ For a generic OIDC destination that accepts the source token directly:
         - --audience
         - my-target-audience
       env: null
-      installHint: "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth#installation"
+      installHint: "k8xauth missing. For installation follow https://github.com/zepellin/k8xauth#installation"
       interactiveMode: IfAvailable
       provideClusterInfo: true
 ...
