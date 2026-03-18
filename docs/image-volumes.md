@@ -7,7 +7,7 @@ Starting with Kubernetes 1.35, [Image Volumes](https://kubernetes.io/docs/concep
 The `k8xauth` binary is published as a minimal (`FROM scratch`) multi-architecture OCI image to GitHub Container Registry on every release:
 
 ```text
-ghcr.io/zepellin/k8xauth:<version>   (e.g. ghcr.io/zepellin/k8xauth:v0.2.2)
+ghcr.io/zepellin/k8xauth:<version>   (e.g. ghcr.io/zepellin/k8xauth:v0.2.4)
 ghcr.io/zepellin/k8xauth:latest
 ```
 
@@ -40,7 +40,7 @@ spec:
   volumes:
     - name: k8xauth
       image:
-        reference: ghcr.io/zepellin/k8xauth:v0.2.2
+        reference: ghcr.io/zepellin/k8xauth:v0.2.4
         pullPolicy: IfNotPresent
 ```
 
@@ -68,7 +68,7 @@ spec:
       volumes:
         - name: k8xauth
           image:
-            reference: ghcr.io/zepellin/k8xauth:v0.2.2
+            reference: ghcr.io/zepellin/k8xauth:v0.2.4
             pullPolicy: IfNotPresent
 ```
 
@@ -86,7 +86,7 @@ Every release image is signed using [Sigstore cosign](https://docs.sigstore.dev/
 cosign verify \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp https://github.com/zepellin/k8xauth/ \
-  ghcr.io/zepellin/k8xauth:v0.2.2
+  ghcr.io/zepellin/k8xauth:v0.2.4
 ```
 
 ### Verify automatically with Kyverno
