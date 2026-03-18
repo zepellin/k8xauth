@@ -1,0 +1,4 @@
+FROM scratch
+ARG TARGETOS=linux
+ARG TARGETARCH
+COPY dist/${TARGETOS}/${TARGETARCH}/k8xauth /k8xauth
