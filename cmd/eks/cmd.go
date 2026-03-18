@@ -11,10 +11,11 @@ import (
 var eksCmd = &cobra.Command{
 	Use:   "eks",
 	Short: "Fetches AWS EKS cluster credentials",
-	Long: `Fetches AWS EKS cluster credentials from GKE or AKS Workload Identity
+	Long: `Fetches AWS EKS cluster credentials from GKE, AKS, or EKS Workload Identity
 
-This is useful for cases where  Kubernetes client is running in GKE or AKS cluster
-and needs to manage external AWS EKS cluster(s)`,
+This is useful for cases where a Kubernetes client is running in GKE, AKS, or EKS
+and needs to manage external AWS EKS cluster(s). Supports EKS IAM Roles for Service
+Accounts (IRSA) and EKS Pod Identity as source authentication methods.`,
 	Example: `k8xauth eks --rolearn "arn:aws:iam::123456789012:role/argocd-platform" --stsregion "us-east-2" --cluster "my-cluster-name"`,
 	Run: func(cmd *cobra.Command, args []string) {
 

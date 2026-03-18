@@ -30,8 +30,12 @@ type clientAuth struct {
 	tokenSource *oauth2.TokenSource
 
 	// identityTokenRetriever is an interface that defines the method for retrieving an identity token.
-	// It is used for AWS EKS authentication.
+	// It is used for AWS EKS IRSA authentication.
 	identityTokenRetriever identityTokenRetriever
+
+	// hasDirectCredentials indicates that this auth source provides AWS credentials directly
+	// (e.g., EKS Pod Identity) rather than requiring web identity token exchange.
+	hasDirectCredentials bool
 }
 
 // ClientAuth is an interface that defines the methods for client authentication.
@@ -59,8 +63,17 @@ func New(options *Options) (*clientAuth, error) {
 	}
 
 	if options.AuthType == "eks" || options.AuthType == "all" {
+		// Try Pod Identity first (newer method)
+		logger.Log.Debug("Source Authentication - Trying EKS Pod Identity")
+		clientAuth, err := eksPodIdentityAuth(ctx)
+		if clientAuth != nil && err == nil {
+			logger.Log.Debug("Source Authentication - Successfully authenticated via EKS Pod Identity")
+			return clientAuth, nil
+		}
+
+		// Fall back to IRSA
 		logger.Log.Debug("Source Authentication - Trying EKS IRSA")
-		clientAuth, err := eksIRSAAuth(ctx)
+		clientAuth, err = eksIRSAAuth(ctx)
 		if clientAuth != nil && err == nil {
 			logger.Log.Debug("Source Authentication - Successfully retrieved EKS IRSA token")
 			return clientAuth, nil
@@ -91,6 +104,12 @@ func (ca *clientAuth) IdentityTokenRetriever() (identityTokenRetriever, error) {
 // If there is no session identifier available, it returns an empty string.
 func (ac *clientAuth) GetSessionIdentifier() (string, error) {
 	return ac.sessionIdentifier, nil
+}
+
+// HasDirectCredentials returns true if this auth source provides AWS credentials
+// directly (e.g., EKS Pod Identity) rather than requiring web identity token exchange.
+func (ac *clientAuth) HasDirectCredentials() bool {
+	return ac.hasDirectCredentials
 }
 
 // GetPlatform returns the platform associated with the clientAuth instance.

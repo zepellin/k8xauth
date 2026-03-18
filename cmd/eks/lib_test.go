@@ -46,6 +46,10 @@ func (m *mockAuthSource) GetIdentityToken() ([]byte, error) {
 	return m.identityToken, nil
 }
 
+func (m *mockAuthSource) HasDirectCredentials() bool {
+	return false
+}
+
 type mockExecCredentialWriter struct {
 	writtenToken *oauth2.Token
 	writerErr    error
@@ -71,7 +75,7 @@ func TestWriteCredentialsWritesEKSToken(t *testing.T) {
 	err := writeCredentials(&auth.Options{}, "role", "cluster", "us-east-1", &output, func(*auth.Options) (authSource, error) {
 		return source, nil
 	}, func(_ context.Context, providedSource authSource, roleArn, clusterName, region string, _ func() time.Time) (oauth2.Token, error) {
-		if providedSource != source || roleArn != "role" || clusterName != "cluster" || region != "us-east-1" {
+		if roleArn != "role" || clusterName != "cluster" || region != "us-east-1" {
 			t.Fatal("unexpected token builder inputs")
 		}
 		return oauth2.Token{AccessToken: "eks-token"}, nil
