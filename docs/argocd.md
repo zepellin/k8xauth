@@ -140,3 +140,39 @@ stringData:
       }
     }
 ```
+
+### Generic OIDC target
+
+Use this when the destination cluster or API server accepts the source OIDC token directly and does not require any cloud-provider specific exchange.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-generic-oidc-cluster-secret
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+type: Opaque
+stringData:
+  name: my-generic-oidc-cluster
+  server: https://192.0.2.10
+  config: |
+    {
+      "execProviderConfig": {
+        "command": "k8xauth",
+        "args": [
+            "generic-oidc",
+            "--authsource",
+            "gke",
+            "--audience",
+            "my-target-audience"
+        ],
+        "apiVersion": "client.authentication.k8s.io/v1beta1",
+        "installHint": "k8xauth missing. For installation follow https://github.com/trhyo/k8xauth"
+      },
+      "tlsClientConfig": {
+        "insecure": false,
+        "caData": "base64_encoded_ca_data"
+      }
+    }
+```

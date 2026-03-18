@@ -19,14 +19,18 @@ const (
 
 // gcpGKETokenSource returns an OAuth2 token source for authenticating with GCP GKE.
 // It fetches the GCP default credentials from the environment and uses them to obtain an identity token.
-func gcpGKETokenSource(ctx context.Context) (oauth2.TokenSource, error) {
+func gcpGKETokenSource(ctx context.Context, audience string) (oauth2.TokenSource, error) {
 	credentials, err := google.FindDefaultCredentials(ctx)
 	if err != nil {
 		logger.Log.Debug("Couldn't fetch GCP default credentials from environment")
 		return nil, err
 	}
 
-	ts, err := idtoken.NewTokenSource(ctx, GCP_TOKEN_AUDIENCE, option.WithCredentials(credentials))
+	if audience == "" {
+		audience = GCP_TOKEN_AUDIENCE
+	}
+
+	ts, err := idtoken.NewTokenSource(ctx, audience, option.WithCredentials(credentials))
 	if err != nil {
 		logger.Log.Debug("Couldn't fetch GCP identity token")
 		return nil, err
@@ -34,8 +38,8 @@ func gcpGKETokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 	return ts, nil
 }
 
-func gkeWorkloadIdentityAuth(ctx context.Context) (*clientAuth, error) {
-	gcpTokenSource, err := gcpGKETokenSource(ctx)
+func gkeWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth, error) {
+	gcpTokenSource, err := gcpGKETokenSource(ctx, audience)
 	if gcpTokenSource != nil && err == nil {
 		c := metadata.NewClient(&http.Client{})
 		projectId, err := c.ProjectID()

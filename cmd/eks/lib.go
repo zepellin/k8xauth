@@ -2,6 +2,7 @@ package eks
 
 import (
 	"fmt"
+	"io"
 	auth "k8xauth/internal/auth"
 	"k8xauth/internal/credwriter"
 	"k8xauth/internal/logger"
@@ -32,43 +33,122 @@ const (
 	tokenV1Prefix          = "k8s-aws-v1."    // Prefix of a token in client.authentication.k8s.io/v1beta1 ExecCredential
 )
 
-func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion string) {
+type authSource interface {
+	PrettyPrintJWTToken(w io.Writer) error
+	GetSessionIdentifier() (string, error)
+	GetIdentityToken() ([]byte, error)
+}
 
+type execCredentialWriter interface {
+	Write(token oauth2.Token, writer ...io.Writer) error
+}
+
+type functionAuthSource struct {
+	prettyPrint func(io.Writer) error
+	sessionID   func() (string, error)
+	identity    func() ([]byte, error)
+}
+
+type staticIdentityToken []byte
+
+func (s staticIdentityToken) GetIdentityToken() ([]byte, error) {
+	return []byte(s), nil
+}
+
+func (f *functionAuthSource) PrettyPrintJWTToken(w io.Writer) error {
+	return f.prettyPrint(w)
+}
+
+func (f *functionAuthSource) GetSessionIdentifier() (string, error) {
+	return f.sessionID()
+}
+
+func (f *functionAuthSource) GetIdentityToken() ([]byte, error) {
+	return f.identity()
+}
+
+func defaultAuthSourceFactory(o *auth.Options) (authSource, error) {
+	source, err := auth.New(o)
+	if err != nil {
+		return nil, err
+	}
+
+	return &functionAuthSource{
+		prettyPrint: source.PrettyPrintJWTToken,
+		sessionID:   source.GetSessionIdentifier,
+		identity: func() ([]byte, error) {
+			identityToken, err := source.IdentityTokenRetriever()
+			if err != nil {
+				return nil, err
+			}
+			return identityToken.GetIdentityToken()
+		},
+	}, nil
+}
+
+func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion string) {
+	err := writeCredentials(o, awsAssumeRoleArn, eksClusterName, stsRegion, os.Stdout, defaultAuthSourceFactory, buildEKSToken, &credwriter.ExecCredentialWriter{}, time.Now)
+	if err != nil {
+		logger.Log.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+func writeCredentials(
+	o *auth.Options,
+	awsAssumeRoleArn, eksClusterName, stsRegion string,
+	output io.Writer,
+	authFactory func(*auth.Options) (authSource, error),
+	tokenBuilder func(context.Context, authSource, string, string, string, func() time.Time) (oauth2.Token, error),
+	writer execCredentialWriter,
+	now func() time.Time,
+) error {
 	ctx := context.Background()
 
-	authSource, err := auth.New(o)
+	authSource, err := authFactory(o)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("Failed getting token source: %s", err.Error()))
-		os.Exit(1)
+		return fmt.Errorf("failed getting token source: %w", err)
 	}
 
 	if o.PrintSourceToken {
-		authSource.PrettyPrintJWTToken(os.Stdout)
+		if err := authSource.PrettyPrintJWTToken(output); err != nil {
+			return fmt.Errorf("failed to print source token: %w", err)
+		}
 	}
 
+	eksToken, err := tokenBuilder(ctx, authSource, awsAssumeRoleArn, eksClusterName, stsRegion, now)
+	if err != nil {
+		return err
+	}
+
+	if err := writer.Write(eksToken, output); err != nil {
+		return fmt.Errorf("failed to write exec credential: %w", err)
+	}
+
+	return nil
+}
+
+func buildEKSToken(ctx context.Context, authSource authSource, awsAssumeRoleArn, eksClusterName, stsRegion string, now func() time.Time) (oauth2.Token, error) {
 	sessionIdentifier, err := authSource.GetSessionIdentifier()
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("Couldn't retrieve session identifier: %s", err.Error()))
-		os.Exit(1)
+		return oauth2.Token{}, fmt.Errorf("couldn't retrieve session identifier: %w", err)
 	}
 
 	assumeRoleCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion))
 	if err != nil {
-		logger.Log.Error("failed to load default AWS config: %s" + err.Error())
-		os.Exit(1)
+		return oauth2.Token{}, fmt.Errorf("failed to load default AWS config: %w", err)
 	}
 
-	identityToken, err := authSource.IdentityTokenRetriever()
+	identityTokenBytes, err := authSource.GetIdentityToken()
 	if err != nil {
-		logger.Log.Error("Failed to get JWT token from GCP metadata: %s" + err.Error())
-		os.Exit(1)
+		return oauth2.Token{}, fmt.Errorf("failed to get web identity token: %w", err)
 	}
 
 	stsAssumeClient := sts.NewFromConfig(assumeRoleCfg)
 	awsCredsCache := aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(
 		stsAssumeClient,
 		awsAssumeRoleArn,
-		identityToken,
+		staticIdentityToken(identityTokenBytes),
 		func(o *stscreds.WebIdentityRoleOptions) {
 			o.RoleSessionName = sessionIdentifier
 		}),
@@ -76,8 +156,7 @@ func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion
 
 	awsCredentials, err := awsCredsCache.Retrieve(ctx)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("Couldn't retrieve AWS credentials %s", err.Error()))
-		os.Exit(1)
+		return oauth2.Token{}, fmt.Errorf("couldn't retrieve AWS credentials: %w", err)
 	}
 
 	eksSignerCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion),
@@ -86,12 +165,10 @@ func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion
 		}),
 	)
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("Couldn't load AWS config using retrieved credentials %s", err.Error()))
-		os.Exit(1)
+		return oauth2.Token{}, fmt.Errorf("couldn't load AWS config using retrieved credentials: %w", err)
 	}
 
 	stsClient := sts.NewFromConfig(eksSignerCfg)
-
 	presignclient := sts.NewPresignClient(stsClient)
 	presignedURLString, err := presignclient.PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, func(opt *sts.PresignOptions) {
 		opt.Presigner = newCustomHTTPPresignerV4(opt.Presigner, map[string]string{
@@ -100,22 +177,13 @@ func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion
 		})
 	})
 	if err != nil {
-		logger.Log.Error(fmt.Sprintf("Couldn't presign STS request %s", err.Error()))
+		return oauth2.Token{}, fmt.Errorf("couldn't presign STS request: %w", err)
 	}
 
 	token := tokenV1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString.URL))
-	// Set token expiration to 1 minute before the presigned URL expires for some cushion
-	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
+	tokenExpiration := now().Local().Add(presignedURLExpiration - 1*time.Minute)
 
-	writer := credwriter.ExecCredentialWriter{}
-	err = writer.Write(oauth2.Token{
-		AccessToken: token,
-		Expiry:      tokenExpiration,
-	}, os.Stdout)
-	if err != nil {
-		logger.Log.Error(err.Error())
-		os.Exit(1)
-	}
+	return oauth2.Token{AccessToken: token, Expiry: tokenExpiration}, nil
 }
 
 type customHTTPPresignerV4 struct {

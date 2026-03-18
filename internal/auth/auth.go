@@ -52,7 +52,7 @@ func New(options *Options) (*clientAuth, error) {
 
 	if options.AuthType == "gke" || options.AuthType == "all" {
 		logger.Log.Debug("Source Authentication - Trying GKE Workload Identity")
-		clientAuth, err := gkeWorkloadIdentityAuth(ctx)
+		clientAuth, err := gkeWorkloadIdentityAuth(ctx, options.Audience)
 		if clientAuth != nil && err == nil {
 			logger.Log.Debug("Source Authentication - Successfully retrieved GKE Workload Identity token")
 			return clientAuth, nil
@@ -70,7 +70,7 @@ func New(options *Options) (*clientAuth, error) {
 
 	if options.AuthType == "aks" || options.AuthType == "all" {
 		logger.Log.Debug("Source Authentication - Trying AKS Workload Identity")
-		clientAuth, err := aksWorkloadIdentityAuth(ctx)
+		clientAuth, err := aksWorkloadIdentityAuth(ctx, options.Audience)
 		if clientAuth != nil && err == nil {
 			logger.Log.Debug("Source Authentication - Successfully retrieved AKS Workload Identity token")
 			return clientAuth, nil
