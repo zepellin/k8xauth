@@ -11,7 +11,6 @@ import (
 
 	"k8xauth/internal/logger"
 
-	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
 )
 
@@ -126,11 +125,6 @@ func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
 	}
 	token := tk.AccessToken
 
-	_, err = jwt.ParseSigned(token, nil) // parse without verification
-	if err != nil {
-		return errors.New("error parsing token: " + err.Error())
-	}
-
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return errors.New("error decoding token: JWT must have three parts")
@@ -156,6 +150,10 @@ func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
 		return errors.New("error marshaling token data")
 	}
 
-	fmt.Println(string(b))
+	_, err = fmt.Fprintln(w, string(b))
+	if err != nil {
+		return errors.New("error writing token data: " + err.Error())
+	}
+
 	return nil
 }

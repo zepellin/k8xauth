@@ -104,6 +104,32 @@ func TestWriteCredentialsPrintsSourceTokenWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestWriteCredentialsContinuesWhenPrintingSourceTokenFails(t *testing.T) {
+	provider := &mockTokenProvider{
+		token:          &oauth2.Token{AccessToken: "source-token"},
+		prettyPrintErr: errors.New("print-failed"),
+	}
+	writer := &mockExecCredentialWriter{}
+	var output bytes.Buffer
+
+	err := writeCredentials(&auth.Options{PrintSourceToken: true}, &output, func(*auth.Options) (tokenProvider, error) {
+		return provider, nil
+	}, writer)
+	if err != nil {
+		t.Fatalf("writeCredentials() error = %v", err)
+	}
+
+	if !provider.prettyPrintCalled {
+		t.Fatal("expected PrettyPrintJWTToken to be called")
+	}
+	if writer.writeCalls != 1 {
+		t.Fatalf("expected writer to be called once, got %d", writer.writeCalls)
+	}
+	if output.String() != "exec-credential\n" {
+		t.Fatalf("unexpected output: %q", output.String())
+	}
+}
+
 func TestWriteCredentialsReturnsAuthInitializationError(t *testing.T) {
 	err := writeCredentials(&auth.Options{}, &bytes.Buffer{}, func(*auth.Options) (tokenProvider, error) {
 		return nil, errors.New("boom")

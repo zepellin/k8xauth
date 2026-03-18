@@ -40,7 +40,9 @@ func writeCredentials(o *auth.Options, output io.Writer, authFactory func(*auth.
 
 	if o.PrintSourceToken {
 		if err := authSource.PrettyPrintJWTToken(output); err != nil {
-			return fmt.Errorf("failed to print source token: %w", err)
+			if logger.Log != nil {
+				logger.Log.Warn("Failed to print source token", "error", err.Error())
+			}
 		}
 	}
 
