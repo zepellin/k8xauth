@@ -40,6 +40,17 @@ The same source identities can also be used to emit a generic OIDC ExecCredentia
 
 Download precompiled binary for your platform from the repository' [releases page](https://github.com/zepellin/k8xauth/releases).
 
+#### Container Image (Kubernetes Image Volumes)
+
+The binary is also published as a minimal OCI image for use with [Kubernetes image volumes](/docs/image-volumes.md) (Kubernetes 1.35+):
+
+```text
+ghcr.io/zepellin/k8xauth:<version>
+ghcr.io/zepellin/k8xauth:latest
+```
+
+Supported platforms: `linux/amd64`, `linux/arm64`. See the [image volumes documentation](/docs/image-volumes.md) for usage details.
+
 ### Usage
 
 #### Authentication
