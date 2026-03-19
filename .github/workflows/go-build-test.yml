@@ -2,30 +2,34 @@ name: Go Build Check
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
-      - '.github/**'
-      - '**.md'
+      - ".github/**"
+      - "**.md"
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     paths-ignore:
-      - '.github/**'
-      - '**.md'
+      - ".github/**"
+      - "**.md"
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.mod'
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
 
-    - name: Build
-      run: go build -v ./...
+      - name: Set build env
+        run: |
+          echo "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-    - name: Test
-      run: go test -v ./...
+      - name: Build
+        run: go build -v -ldflags "-X k8xauth/cmd.Commit=${{ env.SHORT_SHA }} -X k8xauth/cmd.BuildDate=${{ env.BUILD_DATE }}" ./...
+
+      - name: Test
+        run: go test -v ./...
