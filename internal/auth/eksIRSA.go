@@ -33,7 +33,7 @@ func EksAWSIRSATokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 		fmt.Printf("error retrieving creds, %v", err)
 	}
 
-	t, err := jwt.ParseSigned(string(token), nil) // parse without verification
+	t, err := jwt.ParseSigned(string(token), jwtSignatureAlgorithms) // parse without verification
 	if err != nil {
 		panic(err)
 	}

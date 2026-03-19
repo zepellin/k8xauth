@@ -1,6 +1,6 @@
 # Authentication with AWS EKS clusters
 
-This document covers the case of retrieving Kubernetes credentials for an AWS EKS cluster from Google Cloud GKE or Azure AKS environments.
+This document covers the case of retrieving Kubernetes credentials for an AWS EKS cluster from Google Cloud GKE, Azure AKS, or AWS EKS environments.
 
 ## Source authentication
 
@@ -37,6 +37,25 @@ For this application running on a Azure AKS cluster:
     ```
 
 4. The IAM role from step 3. having appropriate permissions (policies attached) for EKS cluster(s) management.
+
+### Prerequisites for EKS source authentication (IRSA)
+
+For this application running on an AWS EKS cluster using IAM Roles for Service Accounts (IRSA):
+
+1. An EKS cluster with OIDC provider configured.
+2. A Kubernetes service account annotated with the IAM role ARN (`eks.amazonaws.com/role-arn`).
+3. The IAM role with a trust policy allowing `sts:AssumeRoleWithWebIdentity` from the EKS OIDC provider.
+4. The IAM role having appropriate permissions (policies attached) for target EKS cluster(s) management.
+
+### Prerequisites for EKS source authentication (Pod Identity)
+
+For this application running on an AWS EKS cluster using EKS Pod Identity:
+
+1. An EKS cluster with Pod Identity Agent add-on enabled.
+2. A Pod Identity association configured linking the Kubernetes service account to an IAM role.
+3. The IAM role having appropriate permissions to assume the target role (specified via `--rolearn`) or direct access to the target EKS cluster.
+
+**Note:** When using Pod Identity, the `--rolearn` flag specifies a role to assume using the Pod Identity credentials. If the Pod Identity role already has direct access to the target cluster, you can specify the same role ARN.
 
 ## Usage
 

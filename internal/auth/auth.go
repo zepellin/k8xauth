@@ -11,8 +11,18 @@ import (
 
 	"k8xauth/internal/logger"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"golang.org/x/oauth2"
 )
+
+// jwtSignatureAlgorithms lists the asymmetric signing algorithms accepted when
+// parsing JWTs from AWS identity token files. Signature verification is not
+// performed (UnsafeClaimsWithoutVerification), but go-jose/v4 requires the
+// algorithm set to be non-empty at parse time.
+var jwtSignatureAlgorithms = []jose.SignatureAlgorithm{
+	jose.RS256, jose.RS384, jose.RS512,
+	jose.ES256, jose.ES384, jose.ES512,
+}
 
 type identityTokenRetriever struct {
 	token []byte
@@ -30,8 +40,12 @@ type clientAuth struct {
 	tokenSource *oauth2.TokenSource
 
 	// identityTokenRetriever is an interface that defines the method for retrieving an identity token.
-	// It is used for AWS EKS authentication.
+	// It is used for AWS EKS IRSA authentication.
 	identityTokenRetriever identityTokenRetriever
+
+	// hasDirectCredentials indicates that this auth source provides AWS credentials directly
+	// (e.g., EKS Pod Identity) rather than requiring web identity token exchange.
+	hasDirectCredentials bool
 }
 
 // ClientAuth is an interface that defines the methods for client authentication.
@@ -59,8 +73,17 @@ func New(options *Options) (*clientAuth, error) {
 	}
 
 	if options.AuthType == "eks" || options.AuthType == "all" {
+		// Try Pod Identity first (newer method)
+		logger.Log.Debug("Source Authentication - Trying EKS Pod Identity")
+		clientAuth, err := eksPodIdentityAuth(ctx)
+		if clientAuth != nil && err == nil {
+			logger.Log.Debug("Source Authentication - Successfully authenticated via EKS Pod Identity")
+			return clientAuth, nil
+		}
+
+		// Fall back to IRSA
 		logger.Log.Debug("Source Authentication - Trying EKS IRSA")
-		clientAuth, err := eksIRSAAuth(ctx)
+		clientAuth, err = eksIRSAAuth(ctx)
 		if clientAuth != nil && err == nil {
 			logger.Log.Debug("Source Authentication - Successfully retrieved EKS IRSA token")
 			return clientAuth, nil
@@ -93,6 +116,12 @@ func (ac *clientAuth) GetSessionIdentifier() (string, error) {
 	return ac.sessionIdentifier, nil
 }
 
+// HasDirectCredentials returns true if this auth source provides AWS credentials
+// directly (e.g., EKS Pod Identity) rather than requiring web identity token exchange.
+func (ac *clientAuth) HasDirectCredentials() bool {
+	return ac.hasDirectCredentials
+}
+
 // GetPlatform returns the platform associated with the clientAuth instance.
 // Possible values are "aws" or "gcp" or "azure"
 // It retrieves the platform value stored in the ac.platform field.
@@ -111,6 +140,9 @@ func (i identityTokenRetriever) GetIdentityToken() ([]byte, error) {
 // Token returns the OAuth2 token for the client authentication.
 // It retrieves the token from the underlying token source.
 func (ac *clientAuth) Token() (*oauth2.Token, error) {
+	if ac.tokenSource == nil {
+		return nil, errors.New("no token source available (auth source provides direct credentials, not tokens)")
+	}
 	token, err := (*ac.tokenSource).Token()
 	if err != nil {
 		return nil, err
@@ -119,6 +151,9 @@ func (ac *clientAuth) Token() (*oauth2.Token, error) {
 }
 
 func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
+	if ac.tokenSource == nil {
+		return errors.New("no token source available for pretty printing")
+	}
 	tk, err := (*ac.tokenSource).Token()
 	if err != nil {
 		logger.Log.Info("Error retrieving token: " + err.Error())

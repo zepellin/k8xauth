@@ -37,6 +37,7 @@ type authSource interface {
 	PrettyPrintJWTToken(w io.Writer) error
 	GetSessionIdentifier() (string, error)
 	GetIdentityToken() ([]byte, error)
+	HasDirectCredentials() bool
 }
 
 type execCredentialWriter interface {
@@ -44,9 +45,10 @@ type execCredentialWriter interface {
 }
 
 type functionAuthSource struct {
-	prettyPrint func(io.Writer) error
-	sessionID   func() (string, error)
-	identity    func() ([]byte, error)
+	prettyPrint          func(io.Writer) error
+	sessionID            func() (string, error)
+	identity             func() ([]byte, error)
+	hasDirectCredentials bool
 }
 
 type staticIdentityToken []byte
@@ -67,6 +69,10 @@ func (f *functionAuthSource) GetIdentityToken() ([]byte, error) {
 	return f.identity()
 }
 
+func (f *functionAuthSource) HasDirectCredentials() bool {
+	return f.hasDirectCredentials
+}
+
 func defaultAuthSourceFactory(o *auth.Options) (authSource, error) {
 	source, err := auth.New(o)
 	if err != nil {
@@ -74,8 +80,9 @@ func defaultAuthSourceFactory(o *auth.Options) (authSource, error) {
 	}
 
 	return &functionAuthSource{
-		prettyPrint: source.PrettyPrintJWTToken,
-		sessionID:   source.GetSessionIdentifier,
+		prettyPrint:          source.PrettyPrintJWTToken,
+		sessionID:            source.GetSessionIdentifier,
+		hasDirectCredentials: source.HasDirectCredentials(),
 		identity: func() ([]byte, error) {
 			identityToken, err := source.IdentityTokenRetriever()
 			if err != nil {
@@ -136,29 +143,20 @@ func buildEKSToken(ctx context.Context, authSource authSource, awsAssumeRoleArn,
 		return oauth2.Token{}, fmt.Errorf("couldn't retrieve session identifier: %w", err)
 	}
 
-	assumeRoleCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion))
-	if err != nil {
-		return oauth2.Token{}, fmt.Errorf("failed to load default AWS config: %w", err)
-	}
+	var awsCredentials aws.Credentials
 
-	identityTokenBytes, err := authSource.GetIdentityToken()
-	if err != nil {
-		return oauth2.Token{}, fmt.Errorf("failed to get web identity token: %w", err)
-	}
-
-	stsAssumeClient := sts.NewFromConfig(assumeRoleCfg)
-	awsCredsCache := aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(
-		stsAssumeClient,
-		awsAssumeRoleArn,
-		staticIdentityToken(identityTokenBytes),
-		func(o *stscreds.WebIdentityRoleOptions) {
-			o.RoleSessionName = sessionIdentifier
-		}),
-	)
-
-	awsCredentials, err := awsCredsCache.Retrieve(ctx)
-	if err != nil {
-		return oauth2.Token{}, fmt.Errorf("couldn't retrieve AWS credentials: %w", err)
+	if authSource.HasDirectCredentials() {
+		// Pod Identity: use default credentials and optionally assume role
+		awsCredentials, err = buildCredentialsFromPodIdentity(ctx, awsAssumeRoleArn, stsRegion, sessionIdentifier)
+		if err != nil {
+			return oauth2.Token{}, err
+		}
+	} else {
+		// IRSA: exchange web identity token for credentials
+		awsCredentials, err = buildCredentialsFromIRSA(ctx, authSource, awsAssumeRoleArn, stsRegion, sessionIdentifier)
+		if err != nil {
+			return oauth2.Token{}, err
+		}
 	}
 
 	eksSignerCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion),
@@ -186,6 +184,58 @@ func buildEKSToken(ctx context.Context, authSource authSource, awsAssumeRoleArn,
 	tokenExpiration := now().Local().Add(presignedURLExpiration - 1*time.Minute)
 
 	return oauth2.Token{AccessToken: token, Expiry: tokenExpiration}, nil
+}
+
+// buildCredentialsFromPodIdentity retrieves/assumes credentials using Pod Identity.
+// If awsAssumeRoleArn is provided, it assumes that role using the Pod Identity credentials.
+func buildCredentialsFromPodIdentity(ctx context.Context, awsAssumeRoleArn, stsRegion, sessionIdentifier string) (aws.Credentials, error) {
+	// Load config with Pod Identity credentials
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion))
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("failed to load default AWS config: %w", err)
+	}
+
+	if awsAssumeRoleArn == "" {
+		// No role to assume, use Pod Identity credentials directly
+		return cfg.Credentials.Retrieve(ctx)
+	}
+
+	// Assume the specified role using Pod Identity credentials
+	stsClient := sts.NewFromConfig(cfg)
+	awsCredsCache := aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(
+		stsClient,
+		awsAssumeRoleArn,
+		func(o *stscreds.AssumeRoleOptions) {
+			o.RoleSessionName = sessionIdentifier
+		}),
+	)
+
+	return awsCredsCache.Retrieve(ctx)
+}
+
+// buildCredentialsFromIRSA exchanges a web identity token for AWS credentials (IRSA flow).
+func buildCredentialsFromIRSA(ctx context.Context, authSource authSource, awsAssumeRoleArn, stsRegion, sessionIdentifier string) (aws.Credentials, error) {
+	assumeRoleCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion))
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("failed to load default AWS config: %w", err)
+	}
+
+	identityTokenBytes, err := authSource.GetIdentityToken()
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("failed to get web identity token: %w", err)
+	}
+
+	stsAssumeClient := sts.NewFromConfig(assumeRoleCfg)
+	awsCredsCache := aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(
+		stsAssumeClient,
+		awsAssumeRoleArn,
+		staticIdentityToken(identityTokenBytes),
+		func(o *stscreds.WebIdentityRoleOptions) {
+			o.RoleSessionName = sessionIdentifier
+		}),
+	)
+
+	return awsCredsCache.Retrieve(ctx)
 }
 
 type customHTTPPresignerV4 struct {
