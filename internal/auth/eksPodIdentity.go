@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"k8xauth/internal/logger"
 
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/go-jose/go-jose/v4/jwt"
+	"golang.org/x/oauth2"
 )
 
 // eksPodIdentityAuth attempts to authenticate using EKS Pod Identity.
@@ -39,32 +41,72 @@ func eksPodIdentityAuth(ctx context.Context) (*clientAuth, error) {
 
 	logger.Log.Debug("Successfully retrieved Pod Identity credentials", "accessKeyId", creds.AccessKeyID[:8]+"...")
 
-	// Get caller identity for session identifier
-	stsClient := sts.NewFromConfig(cfg)
-	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get caller identity: %w", err)
-	}
-
-	// Try to get instance identity for additional context
-	var sessionIdentifier string
-	imdsClient := imds.New(imds.Options{})
-	instanceDoc, err := imdsClient.GetInstanceIdentityDocument(ctx, nil)
-	if err == nil {
-		sessionIdentifier = fmt.Sprintf("%s-%s", *identity.Account, instanceDoc.InstanceID)
-	} else {
-		// Fall back to using ARN-based identifier
-		sessionIdentifier = fmt.Sprintf("%s-podidentity", *identity.Account)
-	}
-
-	// Truncate to 32 chars if needed
+	// Derive session identifier from the access key ID to avoid
+	// extra network calls (STS GetCallerIdentity, IMDS) that may
+	// time out or fail in restricted pod environments.
+	sessionIdentifier := fmt.Sprintf("podidentity-%s", creds.AccessKeyID)
 	if len(sessionIdentifier) > 32 {
 		sessionIdentifier = sessionIdentifier[:32]
 	}
 
-	return &clientAuth{
+	ca := &clientAuth{
 		platform:             "aws",
 		sessionIdentifier:    sessionIdentifier,
 		hasDirectCredentials: true,
-	}, nil
+	}
+
+	// AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE is a Kubernetes projected service account
+	// token injected by the EKS Pod Identity webhook alongside the credentials endpoint.
+	// It contains a JWT signed by the cluster's OIDC issuer (audience: pods.eks.amazonaws.com)
+	// and can be used directly as an OIDC bearer token for generic-oidc consumers.
+	if tokenFilePath := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE"); tokenFilePath != "" {
+		ts, err := podIdentityTokenSource(tokenFilePath)
+		if err != nil {
+			logger.Log.Debug("Failed to build OIDC token source from Pod Identity authorization token file", "error", err.Error())
+		} else {
+			rawToken, err := ts.Token()
+			if err != nil {
+				logger.Log.Debug("Failed to read Pod Identity OIDC token", "error", err.Error())
+			} else {
+				ca.tokenSource = &ts
+				ca.identityTokenRetriever = identityTokenRetriever{token: []byte(rawToken.AccessToken)}
+				logger.Log.Debug("Successfully loaded Pod Identity OIDC token from authorization token file")
+			}
+		}
+	}
+
+	return ca, nil
+}
+
+// podIdentityTokenSource reads the Kubernetes SA token injected by the Pod Identity webhook
+// and wraps it in an oauth2.TokenSource. The token is a JWT whose expiry is extracted from
+// the 'exp' claim and used to schedule refresh.
+func podIdentityTokenSource(tokenFilePath string) (oauth2.TokenSource, error) {
+	token, err := stscreds.IdentityTokenFile(tokenFilePath).GetIdentityToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read authorization token file: %w", err)
+	}
+
+	t, err := jwt.ParseSigned(string(token), jwtSignatureAlgorithms) // parse without signature verification
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse authorization token JWT: %w", err)
+	}
+
+	var claims map[string]any
+	if err := t.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return nil, fmt.Errorf("failed to extract claims from authorization token: %w", err)
+	}
+
+	exp, ok := claims["exp"]
+	if !ok {
+		return nil, errors.New("authorization token JWT has no exp claim")
+	}
+
+	staticTS := oauth2.StaticTokenSource(&oauth2.Token{
+		AccessToken: string(token),
+		TokenType:   "Bearer",
+		Expiry:      time.Unix(int64(exp.(float64)), 0),
+	})
+
+	return oauth2.ReuseTokenSourceWithExpiry(nil, staticTS, 60*time.Second), nil
 }

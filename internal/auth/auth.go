@@ -11,8 +11,18 @@ import (
 
 	"k8xauth/internal/logger"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"golang.org/x/oauth2"
 )
+
+// jwtSignatureAlgorithms lists the asymmetric signing algorithms accepted when
+// parsing JWTs from AWS identity token files. Signature verification is not
+// performed (UnsafeClaimsWithoutVerification), but go-jose/v4 requires the
+// algorithm set to be non-empty at parse time.
+var jwtSignatureAlgorithms = []jose.SignatureAlgorithm{
+	jose.RS256, jose.RS384, jose.RS512,
+	jose.ES256, jose.ES384, jose.ES512,
+}
 
 type identityTokenRetriever struct {
 	token []byte
@@ -130,6 +140,9 @@ func (i identityTokenRetriever) GetIdentityToken() ([]byte, error) {
 // Token returns the OAuth2 token for the client authentication.
 // It retrieves the token from the underlying token source.
 func (ac *clientAuth) Token() (*oauth2.Token, error) {
+	if ac.tokenSource == nil {
+		return nil, errors.New("no token source available (auth source provides direct credentials, not tokens)")
+	}
 	token, err := (*ac.tokenSource).Token()
 	if err != nil {
 		return nil, err
@@ -138,6 +151,9 @@ func (ac *clientAuth) Token() (*oauth2.Token, error) {
 }
 
 func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
+	if ac.tokenSource == nil {
+		return errors.New("no token source available for pretty printing")
+	}
 	tk, err := (*ac.tokenSource).Token()
 	if err != nil {
 		logger.Log.Info("Error retrieving token: " + err.Error())
