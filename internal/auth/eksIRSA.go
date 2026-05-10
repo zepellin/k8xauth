@@ -30,22 +30,22 @@ func EksAWSIRSATokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 
 	token, err := stscreds.IdentityTokenFile(tokenFilePath).GetIdentityToken()
 	if err != nil {
-		fmt.Printf("error retrieving creds, %v", err)
+		return nil, fmt.Errorf("retrieving IRSA identity token: %w", err)
 	}
 
 	t, err := jwt.ParseSigned(string(token), jwtSignatureAlgorithms) // parse without verification
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("parsing IRSA JWT: %w", err)
 	}
 
 	var claims map[string]any
 	if err := t.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("extracting JWT claims: %w", err)
 	}
 
 	exp, ok := claims["exp"]
 	if !ok {
-		panic("no exp")
+		return nil, errors.New("IRSA JWT missing exp claim")
 	}
 
 	// Create an OAuth2 token source using the assumed role's credentials
@@ -69,7 +69,7 @@ func eksIRSAAuth(ctx context.Context) (*clientAuth, error) {
 			logger.Log.Debug("Couldn't fetch ProjectId from AWS/EKS metadata server")
 		}
 
-		identitiyToken, err := awsTokenSource.Token()
+		identityToken, err := awsTokenSource.Token()
 		if err != nil {
 			logger.Log.Debug("Couldn't fetch identity token from AWS/EKS metadata server")
 		}
@@ -78,7 +78,7 @@ func eksIRSAAuth(ctx context.Context) (*clientAuth, error) {
 			platform:               "aws",
 			sessionIdentifier:      fmt.Sprintf("%s-%s", i.AccountID, i.InstanceID)[:32],
 			tokenSource:            &awsTokenSource,
-			identityTokenRetriever: identityTokenRetriever{token: []byte(identitiyToken.AccessToken)},
+			identityTokenRetriever: identityTokenRetriever{token: []byte(identityToken.AccessToken)},
 		}
 		return &clientAuth, nil
 	}

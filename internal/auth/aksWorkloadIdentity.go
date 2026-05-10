@@ -49,9 +49,9 @@ func GetAKSTokenSource(ctx context.Context, audience string) (oauth2.TokenSource
 func aksWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth, error) {
 	azureTokenSource, err := GetAKSTokenSource(ctx, audience)
 	if azureTokenSource != nil && err == nil {
-		identitiyToken, err := azureTokenSource.Token()
+		identityToken, err := azureTokenSource.Token()
 		if err != nil {
-			logger.Log.Debug("Error retrieving access token from Azure Workload Identity token source" + err.Error())
+			logger.Log.Debug("Error retrieving access token from Azure Workload Identity token source", "error", err)
 			return nil, err
 		}
 
@@ -59,10 +59,12 @@ func aksWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth,
 			platform:               "azure",
 			sessionIdentifier:      fmt.Sprintf("%s-%s", "k8xauth", fmt.Sprint(time.Now().UnixNano()))[:32],
 			tokenSource:            &azureTokenSource,
-			identityTokenRetriever: identityTokenRetriever{token: []byte(identitiyToken.AccessToken)},
+			identityTokenRetriever: identityTokenRetriever{token: []byte(identityToken.AccessToken)},
 		}
 		return &clientAuth, nil
 	}
-	logger.Log.Debug("Error retrieving AKS Workload Identity token source: " + err.Error())
+	if err != nil {
+		logger.Log.Debug("Error retrieving AKS Workload Identity token source", "error", err)
+	}
 	return nil, err
 }
