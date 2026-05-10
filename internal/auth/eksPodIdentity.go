@@ -9,7 +9,6 @@ import (
 
 	"k8xauth/internal/logger"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
@@ -27,24 +26,11 @@ func eksPodIdentityAuth(ctx context.Context) (*clientAuth, error) {
 
 	logger.Log.Debug("Detected EKS Pod Identity credentials endpoint", "uri", credentialsURI)
 
-	// Load default config which will use Pod Identity credentials
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config for Pod Identity: %w", err)
+	// Derive session identifier from the Kubernetes pod name.
+	sessionIdentifier := os.Getenv("HOSTNAME")
+	if sessionIdentifier == "" {
+		sessionIdentifier = "podidentity"
 	}
-
-	// Verify we can retrieve credentials
-	creds, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve Pod Identity credentials: %w", err)
-	}
-
-	logger.Log.Debug("Successfully retrieved Pod Identity credentials", "accessKeyId", creds.AccessKeyID[:8]+"...")
-
-	// Derive session identifier from the access key ID to avoid
-	// extra network calls (STS GetCallerIdentity, IMDS) that may
-	// time out or fail in restricted pod environments.
-	sessionIdentifier := fmt.Sprintf("podidentity-%s", creds.AccessKeyID)
 	if len(sessionIdentifier) > 32 {
 		sessionIdentifier = sessionIdentifier[:32]
 	}
@@ -60,7 +46,7 @@ func eksPodIdentityAuth(ctx context.Context) (*clientAuth, error) {
 	// It contains a JWT signed by the cluster's OIDC issuer (audience: pods.eks.amazonaws.com)
 	// and can be used directly as an OIDC bearer token for generic-oidc consumers.
 	if tokenFilePath := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE"); tokenFilePath != "" {
-		ts, err := podIdentityTokenSource(tokenFilePath)
+		ts, err := jwtFileTokenSource(tokenFilePath)
 		if err != nil {
 			logger.Log.Debug("Failed to build OIDC token source from Pod Identity authorization token file", "error", err.Error())
 		} else {
@@ -78,28 +64,27 @@ func eksPodIdentityAuth(ctx context.Context) (*clientAuth, error) {
 	return ca, nil
 }
 
-// podIdentityTokenSource reads the Kubernetes SA token injected by the Pod Identity webhook
-// and wraps it in an oauth2.TokenSource. The token is a JWT whose expiry is extracted from
-// the 'exp' claim and used to schedule refresh.
-func podIdentityTokenSource(tokenFilePath string) (oauth2.TokenSource, error) {
+// jwtFileTokenSource reads a JWT from tokenFilePath, extracts its expiry from the 'exp' claim,
+// and wraps it in an oauth2.TokenSource that refreshes 60 s before expiry.
+func jwtFileTokenSource(tokenFilePath string) (oauth2.TokenSource, error) {
 	token, err := stscreds.IdentityTokenFile(tokenFilePath).GetIdentityToken()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read authorization token file: %w", err)
+		return nil, fmt.Errorf("failed to read token file: %w", err)
 	}
 
 	t, err := jwt.ParseSigned(string(token), jwtSignatureAlgorithms) // parse without signature verification
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse authorization token JWT: %w", err)
+		return nil, fmt.Errorf("failed to parse token JWT: %w", err)
 	}
 
 	var claims map[string]any
 	if err := t.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return nil, fmt.Errorf("failed to extract claims from authorization token: %w", err)
+		return nil, fmt.Errorf("failed to extract claims from token: %w", err)
 	}
 
 	exp, ok := claims["exp"]
 	if !ok {
-		return nil, errors.New("authorization token JWT has no exp claim")
+		return nil, errors.New("token JWT has no exp claim")
 	}
 
 	staticTS := oauth2.StaticTokenSource(&oauth2.Token{
