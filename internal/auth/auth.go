@@ -60,9 +60,7 @@ type ClientAuth interface {
 
 // New creates a new clientAuth object based on the provided authSourceType.
 // It returns the clientAuth object and an error, if any.
-func New(options *Options) (*clientAuth, error) {
-	ctx := context.Background()
-
+func New(ctx context.Context, options *Options) (*clientAuth, error) {
 	if options.AuthType == "gke" || options.AuthType == "all" {
 		logger.Log.Debug("Source Authentication - Trying GKE Workload Identity")
 		clientAuth, err := gkeWorkloadIdentityAuth(ctx, options.Audience)

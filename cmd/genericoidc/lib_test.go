@@ -2,6 +2,7 @@ package genericoidc
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -61,7 +62,7 @@ func TestWriteCredentialsWritesSourceToken(t *testing.T) {
 	writer := &mockExecCredentialWriter{}
 	var output bytes.Buffer
 
-	err := writeCredentials(&auth.Options{}, &output, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, &output, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, writer)
 	if err != nil {
@@ -89,7 +90,7 @@ func TestWriteCredentialsPrintsSourceTokenWhenEnabled(t *testing.T) {
 	writer := &mockExecCredentialWriter{}
 	var output bytes.Buffer
 
-	err := writeCredentials(&auth.Options{PrintSourceToken: true}, &output, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{PrintSourceToken: true}, &output, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, writer)
 	if err != nil {
@@ -112,7 +113,7 @@ func TestWriteCredentialsContinuesWhenPrintingSourceTokenFails(t *testing.T) {
 	writer := &mockExecCredentialWriter{}
 	var output bytes.Buffer
 
-	err := writeCredentials(&auth.Options{PrintSourceToken: true}, &output, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{PrintSourceToken: true}, &output, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, writer)
 	if err != nil {
@@ -131,7 +132,7 @@ func TestWriteCredentialsContinuesWhenPrintingSourceTokenFails(t *testing.T) {
 }
 
 func TestWriteCredentialsReturnsAuthInitializationError(t *testing.T) {
-	err := writeCredentials(&auth.Options{}, &bytes.Buffer{}, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, &bytes.Buffer{}, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return nil, errors.New("boom")
 	}, &mockExecCredentialWriter{})
 	if err == nil || !strings.Contains(err.Error(), "failed to initialize source authentication") {
@@ -142,7 +143,7 @@ func TestWriteCredentialsReturnsAuthInitializationError(t *testing.T) {
 func TestWriteCredentialsReturnsTokenError(t *testing.T) {
 	provider := &mockTokenProvider{tokenErr: errors.New("token-failed")}
 
-	err := writeCredentials(&auth.Options{}, &bytes.Buffer{}, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, &bytes.Buffer{}, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, &mockExecCredentialWriter{})
 	if err == nil || !strings.Contains(err.Error(), "failed to retrieve source token") {
@@ -156,7 +157,7 @@ func TestWriteCredentialsReturnsWriterError(t *testing.T) {
 	}
 	writer := &mockExecCredentialWriter{writerErr: errors.New("write-failed")}
 
-	err := writeCredentials(&auth.Options{}, &bytes.Buffer{}, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, &bytes.Buffer{}, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, writer)
 	if err == nil || !strings.Contains(err.Error(), "failed to write exec credential") {

@@ -27,8 +27,8 @@ type execCredentialWriter interface {
 	Write(token oauth2.Token, writer ...io.Writer) error
 }
 
-func defaultTokenProviderFactory(o *auth.Options) (tokenProvider, error) {
-	return auth.New(o)
+func defaultTokenProviderFactory(ctx context.Context, o *auth.Options) (tokenProvider, error) {
+	return auth.New(ctx, o)
 }
 
 func defaultAzureTokenExchange(ctx context.Context, identityToken *oauth2.Token, clientID, tenantID, serverID string) (oauth2.Token, error) {
@@ -72,8 +72,8 @@ func defaultAzureTokenExchange(ctx context.Context, identityToken *oauth2.Token,
 	}, nil
 }
 
-func getCredentials(o *auth.Options, clientID, tenantID, serverID string) {
-	err := writeCredentials(o, clientID, tenantID, serverID, os.Stdout, defaultTokenProviderFactory, defaultAzureTokenExchange, &credwriter.ExecCredentialWriter{})
+func getCredentials(ctx context.Context, o *auth.Options, clientID, tenantID, serverID string) {
+	err := writeCredentials(ctx, o, clientID, tenantID, serverID, os.Stdout, defaultTokenProviderFactory, defaultAzureTokenExchange, &credwriter.ExecCredentialWriter{})
 	if err != nil {
 		logger.Log.Error(err.Error())
 		os.Exit(1)
@@ -81,14 +81,15 @@ func getCredentials(o *auth.Options, clientID, tenantID, serverID string) {
 }
 
 func writeCredentials(
+	ctx context.Context,
 	o *auth.Options,
 	clientID, tenantID, serverID string,
 	output io.Writer,
-	authFactory func(*auth.Options) (tokenProvider, error),
+	authFactory func(context.Context, *auth.Options) (tokenProvider, error),
 	tokenExchange func(context.Context, *oauth2.Token, string, string, string) (oauth2.Token, error),
 	writer execCredentialWriter,
 ) error {
-	authSource, err := authFactory(o)
+	authSource, err := authFactory(ctx, o)
 	if err != nil {
 		return fmt.Errorf("failed to initialize source authentication: %w", err)
 	}
@@ -106,7 +107,7 @@ func writeCredentials(
 		return fmt.Errorf("failed to retrieve source token: %w", err)
 	}
 
-	azToken, err := tokenExchange(context.Background(), identityToken, clientID, tenantID, serverID)
+	azToken, err := tokenExchange(ctx, identityToken, clientID, tenantID, serverID)
 	if err != nil {
 		return fmt.Errorf("failed to exchange source token for Azure credentials: %w", err)
 	}

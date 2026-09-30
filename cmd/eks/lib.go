@@ -73,8 +73,8 @@ func (f *functionAuthSource) HasDirectCredentials() bool {
 	return f.hasDirectCredentials
 }
 
-func defaultAuthSourceFactory(o *auth.Options) (authSource, error) {
-	source, err := auth.New(o)
+func defaultAuthSourceFactory(ctx context.Context, o *auth.Options) (authSource, error) {
+	source, err := auth.New(ctx, o)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func defaultAuthSourceFactory(o *auth.Options) (authSource, error) {
 	}, nil
 }
 
-func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion string) {
-	err := writeCredentials(o, awsAssumeRoleArn, eksClusterName, stsRegion, os.Stdout, defaultAuthSourceFactory, buildEKSToken, &credwriter.ExecCredentialWriter{}, time.Now)
+func getCredentials(ctx context.Context, o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion string) {
+	err := writeCredentials(ctx, o, awsAssumeRoleArn, eksClusterName, stsRegion, os.Stdout, defaultAuthSourceFactory, buildEKSToken, &credwriter.ExecCredentialWriter{})
 	if err != nil {
 		logger.Log.Error(err.Error())
 		os.Exit(1)
@@ -102,17 +102,15 @@ func getCredentials(o *auth.Options, awsAssumeRoleArn, eksClusterName, stsRegion
 }
 
 func writeCredentials(
+	ctx context.Context,
 	o *auth.Options,
 	awsAssumeRoleArn, eksClusterName, stsRegion string,
 	output io.Writer,
-	authFactory func(*auth.Options) (authSource, error),
-	tokenBuilder func(context.Context, authSource, string, string, string, func() time.Time) (oauth2.Token, error),
+	authFactory func(context.Context, *auth.Options) (authSource, error),
+	tokenBuilder func(context.Context, authSource, string, string, string) (oauth2.Token, error),
 	writer execCredentialWriter,
-	now func() time.Time,
 ) error {
-	ctx := context.Background()
-
-	authSource, err := authFactory(o)
+	authSource, err := authFactory(ctx, o)
 	if err != nil {
 		return fmt.Errorf("failed getting token source: %w", err)
 	}
@@ -125,7 +123,7 @@ func writeCredentials(
 		}
 	}
 
-	eksToken, err := tokenBuilder(ctx, authSource, awsAssumeRoleArn, eksClusterName, stsRegion, now)
+	eksToken, err := tokenBuilder(ctx, authSource, awsAssumeRoleArn, eksClusterName, stsRegion)
 	if err != nil {
 		return err
 	}
@@ -137,7 +135,7 @@ func writeCredentials(
 	return nil
 }
 
-func buildEKSToken(ctx context.Context, authSource authSource, awsAssumeRoleArn, eksClusterName, stsRegion string, now func() time.Time) (oauth2.Token, error) {
+func buildEKSToken(ctx context.Context, authSource authSource, awsAssumeRoleArn, eksClusterName, stsRegion string) (oauth2.Token, error) {
 	sessionIdentifier, err := authSource.GetSessionIdentifier()
 	if err != nil {
 		return oauth2.Token{}, fmt.Errorf("couldn't retrieve session identifier: %w", err)
@@ -181,7 +179,7 @@ func buildEKSToken(ctx context.Context, authSource authSource, awsAssumeRoleArn,
 	}
 
 	token := tokenV1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString.URL))
-	tokenExpiration := now().Local().Add(presignedURLExpiration - 1*time.Minute)
+	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
 
 	return oauth2.Token{AccessToken: token, Expiry: tokenExpiration}, nil
 }

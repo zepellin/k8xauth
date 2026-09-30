@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"k8xauth/internal/logger"
 	"net/http"
 
@@ -42,12 +41,12 @@ func gkeWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth,
 	gcpTokenSource, err := gcpGKETokenSource(ctx, audience)
 	if gcpTokenSource != nil && err == nil {
 		c := metadata.NewClient(&http.Client{})
-		projectId, err := c.ProjectID()
+		projectId, err := c.ProjectIDWithContext(ctx)
 		if err != nil {
 			logger.Log.Debug("Couldn't fetch ProjectId from GCP metadata server")
 		}
 
-		hostname, err := c.Hostname()
+		hostname, err := c.HostnameWithContext(ctx)
 		if err != nil {
 			logger.Log.Debug("Couldn't fetch Hostname from GCP metadata server")
 		}
@@ -57,9 +56,10 @@ func gkeWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth,
 			logger.Log.Debug("Couldn't fetch identity token from GCP metadata server")
 		}
 
+		sessionIdentifier := projectId + "-" + hostname
 		clientAuth := clientAuth{
 			platform:               "gcp",
-			sessionIdentifier:      fmt.Sprintf("%s-%s", projectId, hostname)[:32],
+			sessionIdentifier:      sessionIdentifier[:min(len(sessionIdentifier), 32)],
 			tokenSource:            &gcpTokenSource,
 			identityTokenRetriever: identityTokenRetriever{token: []byte(identitiyToken.AccessToken)},
 		}

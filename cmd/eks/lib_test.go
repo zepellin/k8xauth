@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"k8xauth/internal/auth"
 
@@ -72,14 +71,14 @@ func TestWriteCredentialsWritesEKSToken(t *testing.T) {
 	writer := &mockExecCredentialWriter{}
 	var output bytes.Buffer
 
-	err := writeCredentials(&auth.Options{}, "role", "cluster", "us-east-1", &output, func(*auth.Options) (authSource, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, "role", "cluster", "us-east-1", &output, func(context.Context, *auth.Options) (authSource, error) {
 		return source, nil
-	}, func(_ context.Context, providedSource authSource, roleArn, clusterName, region string, _ func() time.Time) (oauth2.Token, error) {
+	}, func(_ context.Context, providedSource authSource, roleArn, clusterName, region string) (oauth2.Token, error) {
 		if roleArn != "role" || clusterName != "cluster" || region != "us-east-1" {
 			t.Fatal("unexpected token builder inputs")
 		}
 		return oauth2.Token{AccessToken: "eks-token"}, nil
-	}, writer, time.Now)
+	}, writer)
 	if err != nil {
 		t.Fatalf("writeCredentials() error = %v", err)
 	}
@@ -94,11 +93,11 @@ func TestWriteCredentialsWritesEKSToken(t *testing.T) {
 func TestWriteCredentialsReturnsTokenBuilderError(t *testing.T) {
 	source := &mockAuthSource{sessionID: "session", identityToken: []byte("jwt")}
 
-	err := writeCredentials(&auth.Options{}, "role", "cluster", "us-east-1", &bytes.Buffer{}, func(*auth.Options) (authSource, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, "role", "cluster", "us-east-1", &bytes.Buffer{}, func(context.Context, *auth.Options) (authSource, error) {
 		return source, nil
-	}, func(_ context.Context, _ authSource, _, _, _ string, _ func() time.Time) (oauth2.Token, error) {
+	}, func(_ context.Context, _ authSource, _, _, _ string) (oauth2.Token, error) {
 		return oauth2.Token{}, errors.New("builder-failed")
-	}, &mockExecCredentialWriter{}, time.Now)
+	}, &mockExecCredentialWriter{})
 	if err == nil || !strings.Contains(err.Error(), "builder-failed") {
 		t.Fatalf("expected builder error, got %v", err)
 	}
@@ -107,7 +106,7 @@ func TestWriteCredentialsReturnsTokenBuilderError(t *testing.T) {
 func TestBuildEKSTokenReturnsSessionIdentifierError(t *testing.T) {
 	source := &mockAuthSource{sessionErr: errors.New("session-failed")}
 
-	_, err := buildEKSToken(nil, source, "role", "cluster", "us-east-1", time.Now)
+	_, err := buildEKSToken(nil, source, "role", "cluster", "us-east-1")
 	if err == nil || !strings.Contains(err.Error(), "couldn't retrieve session identifier") {
 		t.Fatalf("expected session identifier error, got %v", err)
 	}

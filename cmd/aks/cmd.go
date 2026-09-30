@@ -31,7 +31,7 @@ and needs to manage external Azure AKS cluster(s)`,
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 
-		getCredentials(&options, clientID, tenantID, serverID)
+		getCredentials(cmd.Context(), &options, clientID, tenantID, serverID)
 	},
 }
 
