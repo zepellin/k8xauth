@@ -20,6 +20,10 @@ For this application running on a Google Cloud GKE cluster/GCE VM:
 2. Azure user assigned managed identity or Entra app with federated credential set up with Google Cloud service account identity (issuer `https://accounts.google.com`, subject identifier - service account numerical ID) and desired allowed audiences
 3. Appropriate permissions given to the entra managed identity from step 2. to connect to target AKS cluster.
 
+### Prerequisites for Kubernetes service account source authentication
+
+For this application running on any Kubernetes cluster, using its service account token and OIDC issuer, see [Kubernetes source authentication](/docs/kubernetes.md). This source is not part of the default `--authsource all` and must be selected with `--authsource kubernetes`.
+
 ## Usage
 
 * **--clientid**: Azure Managed Principal/App client ID (required).

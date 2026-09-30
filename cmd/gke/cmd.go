@@ -11,9 +11,10 @@ import (
 var gkeCmd = &cobra.Command{
 	Use:   "gke",
 	Short: "Fetches Google Cloud GKE cluster credentials",
-	Long: `Fetches Google Cloud GKE cluster credentials from AKS Workload Identity or EKS IRSA
+	Long: `Fetches Google Cloud GKE cluster credentials from AKS Workload Identity, EKS IRSA
+or a Kubernetes service account token
 
-This is useful for cases where  Kubernetes client is running in AKS or EKS cluster
+This is useful for cases where  Kubernetes client is running in AKS, EKS or any other Kubernetes cluster
 and needs to manage external Google Cloud GKE cluster(s)`,
 	Example: `k8xauth gke --projectid "12345678901" --poolid "gcp-fed-pool-id" --providerid "gcp-fed-provider-id" --serviceaccount "gcp-sa-name@gcp-project-name.iam.gserviceaccount.com"`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -25,6 +26,7 @@ and needs to manage external Google Cloud GKE cluster(s)`,
 
 		options := auth.Options{
 			AuthType:         cmd.Flag("authsource").Value.String(),
+			TokenFile:        cmd.Flag("sourcetokenfile").Value.String(),
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 

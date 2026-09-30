@@ -81,7 +81,8 @@ func versionString() string {
 func init() {
 	RootCmd.Version, _, _ = buildVersion()
 	RootCmd.SetVersionTemplate(versionString())
-	RootCmd.PersistentFlags().String("authsource", "all", "Authentication source to use [gke|eks|aks|all] (optional)")
+	RootCmd.PersistentFlags().String("authsource", "all", "Authentication source to use [gke|eks|aks|kubernetes|all]; all tries gke, eks and aks (optional)")
+	RootCmd.PersistentFlags().String("sourcetokenfile", "", "Service account token file used by the kubernetes authentication source (optional, default \"/var/run/secrets/kubernetes.io/serviceaccount/token\")")
 	RootCmd.PersistentFlags().Bool("printsourceauthtoken", false, "Print source authentication token, useful for debugging. May expose sensitive data")
 	RootCmd.PersistentFlags().String("loglevel", "info", "Set log level [debug|info|warn|error] (optional)")
 	RootCmd.PersistentFlags().String("logformat", "text", "Set log format [text|json] (optional)")

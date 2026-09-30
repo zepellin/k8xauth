@@ -33,6 +33,10 @@ Currently this application supports AWS, Azure and Google Cloud Platform, with f
 - **Google Cloud/GKE** using [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) ([instructions](/docs/gke.md)) to:
   - AWS/EKS via IAM role [OIDC trust policy](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
   - Azure/AKS via [Federated Credentials](https://azure.github.io/azure-workload-identity/docs/topics/federated-identity-credential.html#federated-identity-credential-for-a-user-assigned-managed-identity-1)
+- **Any Kubernetes cluster** using its [service account token](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#serviceaccount-token-volume-projection) and OIDC issuer ([instructions](/docs/kubernetes.md)) to:
+  - AWS/EKS via IAM role [OIDC trust policy](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
+  - GCP/GKE via [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+  - Azure/AKS via [Federated Credentials](https://azure.github.io/azure-workload-identity/docs/topics/federated-identity-credential.html#federated-identity-credential-for-a-user-assigned-managed-identity-1)
 
 The same source identities can also be used to emit a generic OIDC ExecCredential without any provider-specific exchange. See [generic OIDC usage](/docs/generic-oidc.md).
 
@@ -55,7 +59,12 @@ Supported platforms: `linux/amd64`, `linux/arm64`. See the [image volumes docume
 
 #### Authentication
 
-The application uses credentials provided by the environment it is running in (Workload Identity for GKE and AKS, IRSA for EKS). By default all authentication methods are tried sequentially. Optionally for all commands `--authsource` parameter might be specified which will set authentication source to only selected one (possible options `gke`, `eks`, `aks` or `all`). If not specified, `all` is used which will try all source authentication methods.
+The application uses credentials provided by the environment it is running in (Workload Identity for GKE and AKS, IRSA or Pod Identity for EKS, service account token for any Kubernetes cluster). By default the GKE, EKS and AKS authentication methods are tried sequentially. Optionally for all commands `--authsource` parameter might be specified which will set authentication source to only selected one (possible options `gke`, `eks`, `aks`, `kubernetes` or `all`). If not specified, `all` is used which will try the GKE, EKS and AKS source authentication methods.
+
+> [!NOTE]
+> The `kubernetes` source is not part of `all` and must always be selected explicitly with `--authsource kubernetes`. The default service account token is present in almost every pod, so including it in `all` would silently mask a misconfigured cloud provider source.
+
+The token file used by the `kubernetes` source can be set with `--sourcetokenfile` (default `/var/run/secrets/kubernetes.io/serviceaccount/token`).
 
 > [!TIP]
 > For debugging purposes and to aid with authentication federation setup, the application can be configured to print source authentication token using the `--printsourceauthtoken` parameter.
@@ -100,6 +109,7 @@ The `generic-oidc` command returns the source OIDC token as-is in an ExecCredent
 - GKE source defaults to audience `gcp`
 - AKS source defaults to scope `api://AzureADTokenExchange/.default`
 - EKS source uses the projected IRSA token as provided by Kubernetes
+- Kubernetes source uses the service account token file as provided by Kubernetes
 
 #### With kubectl
 
