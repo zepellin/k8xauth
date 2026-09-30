@@ -31,11 +31,10 @@ func eksPodIdentityAuth(ctx context.Context) (*clientAuth, error) {
 	if sessionIdentifier == "" {
 		sessionIdentifier = "podidentity"
 	}
-	sessionIdentifier = sessionIdentifier[:min(len(sessionIdentifier), 32)]
 
 	ca := &clientAuth{
 		platform:             "aws",
-		sessionIdentifier:    sessionIdentifier,
+		sessionIdentifier:    normalizeSessionIdentifier(sessionIdentifier),
 		hasDirectCredentials: true,
 	}
 

@@ -22,6 +22,10 @@ For this application running on a Azure AKS cluster:
 3. Optionally, a Google Cloud service account with `Workload Identity User` permission, if `--serviceaccount` parameter is used.
 4. Federated identity (in the form of `principal://..`) or Google Cloud service account having appropriate permissions to manage GKE cluster.
 
+### Prerequisites for Kubernetes service account source authentication
+
+For this application running on any Kubernetes cluster, using its service account token and OIDC issuer, see [Kubernetes source authentication](/docs/kubernetes.md). This source is not part of the default `--authsource all` and must be selected with `--authsource kubernetes`.
+
 ## Usage
 
 * **--projectid**: Numerical GCP project ID (required).

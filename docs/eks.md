@@ -57,6 +57,10 @@ For this application running on an AWS EKS cluster using EKS Pod Identity:
 
 **Note:** When using Pod Identity, the `--rolearn` flag specifies a role to assume using the Pod Identity credentials. If the Pod Identity role already has direct access to the target cluster, you can specify the same role ARN.
 
+### Prerequisites for Kubernetes service account source authentication
+
+For this application running on any Kubernetes cluster, using its service account token and OIDC issuer, see [Kubernetes source authentication](/docs/kubernetes.md). This source is not part of the default `--authsource all` and must be selected with `--authsource kubernetes`.
+
 ## Usage
 
 * **--rolearn**: The AWS IAM role ARN to assume (required).

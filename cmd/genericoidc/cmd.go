@@ -10,18 +10,21 @@ import (
 var genericOIDCCmd = &cobra.Command{
 	Use:   "generic-oidc",
 	Short: "Fetches generic OIDC exec credentials",
-	Long: `Fetches generic OIDC exec credentials from GKE, EKS, or AKS workload identities.
+	Long: `Fetches generic OIDC exec credentials from GKE, EKS, or AKS workload identities
+or a Kubernetes service account token.
 
 This is useful for cases where a Kubernetes client only needs the source OIDC token
 without any cloud-provider specific token exchange or transformation.`,
 	Example: `k8xauth generic-oidc --authsource gke --audience "my-audience"
 k8xauth generic-oidc --authsource eks
+k8xauth generic-oidc --authsource kubernetes --sourcetokenfile /var/run/secrets/k8xauth/token
 k8xauth generic-oidc --authsource aks --audience "api://custom-app/.default"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		audience, _ := cmd.Flags().GetString("audience")
 
 		options := auth.Options{
 			AuthType:         cmd.Flag("authsource").Value.String(),
+			TokenFile:        cmd.Flag("sourcetokenfile").Value.String(),
 			Audience:         audience,
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}

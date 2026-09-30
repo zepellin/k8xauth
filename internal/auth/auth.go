@@ -30,7 +30,7 @@ type identityTokenRetriever struct {
 
 type clientAuth struct {
 	// platform represents the name of the platform.
-	// It can be "aws" or "gcp" or "azure"
+	// It can be "aws" or "gcp" or "azure" or "kubernetes"
 	platform string
 
 	// sessionIdentifier represents the unique identifier for a session.
@@ -97,7 +97,29 @@ func New(ctx context.Context, options *Options) (*clientAuth, error) {
 		}
 	}
 
+	// Kubernetes service account token is only used when explicitly selected, as the default token is present
+	// in most pods and would otherwise mask misconfiguration of the cloud provider sources above.
+	if options.AuthType == "kubernetes" {
+		logger.Log.Debug("Source Authentication - Trying Kubernetes service account token")
+		clientAuth, err := kubernetesServiceAccountAuth(ctx, options.TokenFile, options.Audience)
+		if err != nil {
+			// No other source follows, so return the actual error to help fix the token path or projection.
+			return nil, fmt.Errorf("kubernetes service account token source: %w", err)
+		}
+		logger.Log.Debug("Source Authentication - Successfully retrieved Kubernetes service account token")
+		return clientAuth, nil
+	}
+
 	return nil, errors.New("no valid authentication source found")
+}
+
+// normalizeSessionIdentifier truncates a session identifier to 32 characters and prefixes identifiers
+// shorter than the 2 characters AWS STS requires for a role session name (e.g. a one-character pod name).
+func normalizeSessionIdentifier(sessionIdentifier string) string {
+	if len(sessionIdentifier) < 2 {
+		sessionIdentifier = "k8xauth-" + sessionIdentifier
+	}
+	return sessionIdentifier[:min(len(sessionIdentifier), 32)]
 }
 
 // IdentityTokenRetriever returns the identity token retriever for the client authentication.
@@ -121,7 +143,7 @@ func (ac *clientAuth) HasDirectCredentials() bool {
 }
 
 // GetPlatform returns the platform associated with the clientAuth instance.
-// Possible values are "aws" or "gcp" or "azure"
+// Possible values are "aws" or "gcp" or "azure" or "kubernetes"
 // It retrieves the platform value stored in the ac.platform field.
 // The platform represents the platform on which the client is authenticated.
 // It returns the platform value as a string and an error if any.

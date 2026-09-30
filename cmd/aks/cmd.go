@@ -15,9 +15,10 @@ const (
 var aksCmd = &cobra.Command{
 	Use:   "aks",
 	Short: "Fetches Azure AKS cluster credentials",
-	Long: `Fetches Azure AKS cluster credentials from GKE Workload Identity or EKS IRSA
+	Long: `Fetches Azure AKS cluster credentials from GKE Workload Identity, EKS IRSA
+or a Kubernetes service account token
 
-This is useful for cases where Kubernetes client is running in GKE or EKS cluster
+This is useful for cases where Kubernetes client is running in GKE, EKS or any other Kubernetes cluster
 and needs to manage external Azure AKS cluster(s)`,
 	Example: `k8xauth aks --tenantid "12345678-1234-1234-1234-123456789abc" --clientid "12345678-1234-1234-1234-123456789abc"`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -28,6 +29,7 @@ and needs to manage external Azure AKS cluster(s)`,
 
 		options := auth.Options{
 			AuthType:         cmd.Flag("authsource").Value.String(),
+			TokenFile:        cmd.Flag("sourcetokenfile").Value.String(),
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 

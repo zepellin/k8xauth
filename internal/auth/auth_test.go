@@ -1,15 +1,19 @@
 package auth
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"k8xauth/internal/logger"
 
 	"golang.org/x/oauth2"
 )
@@ -76,5 +80,33 @@ func TestPrettyPrintJWTTokenReturnsTokenError(t *testing.T) {
 	err := ca.PrettyPrintJWTToken(io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "token-failed") {
 		t.Fatalf("expected token error, got %v", err)
+	}
+}
+
+func TestNormalizeSessionIdentifier(t *testing.T) {
+	for in, want := range map[string]string{
+		"":   "k8xauth-",
+		"a":  "k8xauth-a",
+		"ab": "ab",
+		"argocd-application-controller-0123456789-abcde": "argocd-application-controller-01",
+	} {
+		if got := normalizeSessionIdentifier(in); got != want {
+			t.Errorf("normalizeSessionIdentifier(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestEKSPodIdentityAuthShortHostname(t *testing.T) {
+	logger.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
+	t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", "")
+	t.Setenv("HOSTNAME", "a")
+
+	ca, err := eksPodIdentityAuth(context.Background())
+	if err != nil {
+		t.Fatalf("eksPodIdentityAuth() error = %v", err)
+	}
+	if ca.sessionIdentifier != "k8xauth-a" {
+		t.Fatalf("sessionIdentifier = %q, want k8xauth-a", ca.sessionIdentifier)
 	}
 }

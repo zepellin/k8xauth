@@ -12,8 +12,9 @@ var eksCmd = &cobra.Command{
 	Use:   "eks",
 	Short: "Fetches AWS EKS cluster credentials",
 	Long: `Fetches AWS EKS cluster credentials from GKE or AKS Workload Identity
+or a Kubernetes service account token
 
-This is useful for cases where  Kubernetes client is running in GKE or AKS cluster
+This is useful for cases where  Kubernetes client is running in GKE, AKS or any other Kubernetes cluster
 and needs to manage external AWS EKS cluster(s)`,
 	Example: `k8xauth eks --rolearn "arn:aws:iam::123456789012:role/argocd-platform" --stsregion "us-east-2" --cluster "my-cluster-name"`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -24,6 +25,7 @@ and needs to manage external AWS EKS cluster(s)`,
 
 		options := auth.Options{
 			AuthType:         cmd.Flag("authsource").Value.String(),
+			TokenFile:        cmd.Flag("sourcetokenfile").Value.String(),
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 
