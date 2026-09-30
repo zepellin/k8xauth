@@ -60,7 +60,7 @@ func kubernetesServiceAccountAuth(_ context.Context, tokenFilePath, audience str
 
 	ca := clientAuth{
 		platform:               "kubernetes",
-		sessionIdentifier:      sessionIdentifier[:min(len(sessionIdentifier), 32)],
+		sessionIdentifier:      normalizeSessionIdentifier(sessionIdentifier),
 		tokenSource:            &tokenSource,
 		identityTokenRetriever: identityTokenRetriever{token: []byte(identityToken.AccessToken)},
 	}

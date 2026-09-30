@@ -97,8 +97,25 @@ func TestNewKubernetesAuthSource(t *testing.T) {
 		t.Fatalf("platform = %q, want kubernetes", platform)
 	}
 
-	if _, err := New(context.Background(), &Options{AuthType: "kubernetes", TokenFile: filepath.Join(t.TempDir(), "missing")}); err == nil {
-		t.Fatal("expected an error for a missing token file")
+	missing := filepath.Join(t.TempDir(), "missing")
+	_, err = New(context.Background(), &Options{AuthType: "kubernetes", TokenFile: missing})
+	if err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("expected the underlying token file error, got %v", err)
+	}
+
+	_, err = New(context.Background(), &Options{AuthType: "kubernetes", TokenFile: writeTokenFile(t, token), Audience: "other"})
+	if err == nil || !strings.Contains(err.Error(), `not the requested "other"`) {
+		t.Fatalf("expected the underlying audience error, got %v", err)
+	}
+}
+
+func TestKubernetesServiceAccountAuthShortPodName(t *testing.T) {
+	ca, err := kubernetesServiceAccountAuth(context.Background(), writeTokenFile(t, unsignedJWT(kubernetesTokenPayload("sts.amazonaws.com", "a"))), "")
+	if err != nil {
+		t.Fatalf("kubernetesServiceAccountAuth() error = %v", err)
+	}
+	if ca.sessionIdentifier != "k8xauth-a" {
+		t.Fatalf("sessionIdentifier = %q, want k8xauth-a", ca.sessionIdentifier)
 	}
 }
 

@@ -102,14 +102,24 @@ func New(ctx context.Context, options *Options) (*clientAuth, error) {
 	if options.AuthType == "kubernetes" {
 		logger.Log.Debug("Source Authentication - Trying Kubernetes service account token")
 		clientAuth, err := kubernetesServiceAccountAuth(ctx, options.TokenFile, options.Audience)
-		if clientAuth != nil && err == nil {
-			logger.Log.Debug("Source Authentication - Successfully retrieved Kubernetes service account token")
-			return clientAuth, nil
+		if err != nil {
+			// No other source follows, so return the actual error to help fix the token path or projection.
+			return nil, fmt.Errorf("kubernetes service account token source: %w", err)
 		}
-		logger.Log.Debug("Source Authentication - Kubernetes service account token not available", "error", err)
+		logger.Log.Debug("Source Authentication - Successfully retrieved Kubernetes service account token")
+		return clientAuth, nil
 	}
 
 	return nil, errors.New("no valid authentication source found")
+}
+
+// normalizeSessionIdentifier truncates a session identifier to 32 characters and prefixes identifiers
+// shorter than the 2 characters AWS STS requires for a role session name (e.g. a one-character pod name).
+func normalizeSessionIdentifier(sessionIdentifier string) string {
+	if len(sessionIdentifier) < 2 {
+		sessionIdentifier = "k8xauth-" + sessionIdentifier
+	}
+	return sessionIdentifier[:min(len(sessionIdentifier), 32)]
 }
 
 // IdentityTokenRetriever returns the identity token retriever for the client authentication.
