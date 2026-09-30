@@ -29,8 +29,7 @@ func (*ExecCredentialWriter) Write(token oauth2.Token, writer ...io.Writer) erro
 		return err
 	}
 	// Support both apiVersions of client.authentication.k8s.io/v1beta1 and client.authentication.k8s.io/v1
-	var ec interface{}
-	t := metav1.NewTime(token.Expiry)
+	var ec any
 	switch apiVersionFromEnv {
 	case apiV1beta1:
 		ec = &v1beta1.ExecCredential{
@@ -40,7 +39,7 @@ func (*ExecCredentialWriter) Write(token oauth2.Token, writer ...io.Writer) erro
 			},
 			Status: &v1beta1.ExecCredentialStatus{
 				Token:               token.AccessToken,
-				ExpirationTimestamp: &t,
+				ExpirationTimestamp: new(metav1.NewTime(token.Expiry)),
 			},
 		}
 	case apiV1:
@@ -51,7 +50,7 @@ func (*ExecCredentialWriter) Write(token oauth2.Token, writer ...io.Writer) erro
 			},
 			Status: &v1.ExecCredentialStatus{
 				Token:               token.AccessToken,
-				ExpirationTimestamp: &t,
+				ExpirationTimestamp: new(metav1.NewTime(token.Expiry)),
 			},
 		}
 	}

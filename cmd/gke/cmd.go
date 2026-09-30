@@ -28,7 +28,7 @@ and needs to manage external Google Cloud GKE cluster(s)`,
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 
-		getCredentials(&options, projectId, poolId, providerId, gcpServiceAccount)
+		getCredentials(cmd.Context(), &options, projectId, poolId, providerId, gcpServiceAccount)
 	},
 }
 

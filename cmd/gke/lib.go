@@ -39,8 +39,8 @@ type stsExchangeResult struct {
 	ExpiresIn   int64
 }
 
-func defaultTokenProviderFactory(o *auth.Options) (tokenProvider, error) {
-	return auth.New(o)
+func defaultTokenProviderFactory(ctx context.Context, o *auth.Options) (tokenProvider, error) {
+	return auth.New(ctx, o)
 }
 
 func defaultSTSExchange(ctx context.Context, identityToken oauth2.Token, idProvider string) (stsExchangeResult, error) {
@@ -87,9 +87,9 @@ func defaultServiceAccountTokenExchange(ctx context.Context, stsOAuthToken oauth
 	return oauth2.Token{AccessToken: gcpCredentials.AccessToken}, nil
 }
 
-func getCredentials(o *auth.Options, projectId, poolId, providerId, gcpServiceAccount string) {
+func getCredentials(ctx context.Context, o *auth.Options, projectId, poolId, providerId, gcpServiceAccount string) {
 	idProvider := fmt.Sprintf("//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s", projectId, poolId, providerId)
-	err := writeCredentials(o, idProvider, gcpServiceAccount, os.Stdout, defaultTokenProviderFactory, defaultSTSExchange, defaultServiceAccountTokenExchange, &credwriter.ExecCredentialWriter{}, time.Now)
+	err := writeCredentials(ctx, o, idProvider, gcpServiceAccount, os.Stdout, defaultTokenProviderFactory, defaultSTSExchange, defaultServiceAccountTokenExchange, &credwriter.ExecCredentialWriter{})
 	if err != nil {
 		logger.Log.Error(err.Error())
 		os.Exit(1)
@@ -97,16 +97,16 @@ func getCredentials(o *auth.Options, projectId, poolId, providerId, gcpServiceAc
 }
 
 func writeCredentials(
+	ctx context.Context,
 	o *auth.Options,
 	idProvider, gcpServiceAccount string,
 	output io.Writer,
-	authFactory func(*auth.Options) (tokenProvider, error),
+	authFactory func(context.Context, *auth.Options) (tokenProvider, error),
 	stsExchange func(context.Context, oauth2.Token, string) (stsExchangeResult, error),
 	serviceAccountExchange func(context.Context, oauth2.Token, string) (oauth2.Token, error),
 	writer execCredentialWriter,
-	now func() time.Time,
 ) error {
-	authSource, err := authFactory(o)
+	authSource, err := authFactory(ctx, o)
 	if err != nil {
 		return fmt.Errorf("failed to initialize source authentication: %w", err)
 	}
@@ -124,7 +124,7 @@ func writeCredentials(
 		return fmt.Errorf("failed to retrieve source token: %w", err)
 	}
 
-	stsToken, err := stsExchange(context.Background(), *identityToken, idProvider)
+	stsToken, err := stsExchange(ctx, *identityToken, idProvider)
 	if err != nil {
 		return fmt.Errorf("failed to exchange source token with GCP STS: %w", err)
 	}
@@ -132,7 +132,7 @@ func writeCredentials(
 	if gcpServiceAccount == "" {
 		if err := writer.Write(oauth2.Token{
 			AccessToken: stsToken.AccessToken,
-			Expiry:      now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
+			Expiry:      time.Now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
 		}, output); err != nil {
 			return fmt.Errorf("failed to write exec credential: %w", err)
 		}
@@ -141,17 +141,17 @@ func writeCredentials(
 
 	stsOauthToken := oauth2.Token{
 		AccessToken: stsToken.AccessToken,
-		Expiry:      now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
+		Expiry:      time.Now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
 	}
 
-	gcpCredentials, err := serviceAccountExchange(context.Background(), stsOauthToken, gcpServiceAccount)
+	gcpCredentials, err := serviceAccountExchange(ctx, stsOauthToken, gcpServiceAccount)
 	if err != nil {
 		return fmt.Errorf("failed to exchange STS token for GCP service account credentials: %w", err)
 	}
 
 	if err := writer.Write(oauth2.Token{
 		AccessToken: gcpCredentials.AccessToken,
-		Expiry:      now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
+		Expiry:      time.Now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
 	}, output); err != nil {
 		return fmt.Errorf("failed to write exec credential: %w", err)
 	}

@@ -40,9 +40,7 @@ func eksIRSAAuth(ctx context.Context) (*clientAuth, error) {
 	if idx := strings.LastIndex(roleARN, "/"); idx >= 0 {
 		sessionIdentifier = roleARN[idx+1:]
 	}
-	if len(sessionIdentifier) > 32 {
-		sessionIdentifier = sessionIdentifier[:32]
-	}
+	sessionIdentifier = sessionIdentifier[:min(len(sessionIdentifier), 32)]
 
 	ca := clientAuth{
 		platform:               "aws",

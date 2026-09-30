@@ -59,7 +59,7 @@ func TestWriteCredentialsWritesAzureExecCredential(t *testing.T) {
 	writer := &mockExecCredentialWriter{}
 	var output bytes.Buffer
 
-	err := writeCredentials(&auth.Options{}, "client", "tenant", "server", &output, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, "client", "tenant", "server", &output, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, func(_ context.Context, _ *oauth2.Token, _, _, _ string) (oauth2.Token, error) {
 		return oauth2.Token{AccessToken: "azure-token", Expiry: time.Unix(100, 0)}, nil
@@ -81,7 +81,7 @@ func TestWriteCredentialsWritesAzureExecCredential(t *testing.T) {
 func TestWriteCredentialsReturnsExchangeError(t *testing.T) {
 	provider := &mockTokenProvider{token: &oauth2.Token{AccessToken: "source-token"}}
 
-	err := writeCredentials(&auth.Options{}, "client", "tenant", "server", &bytes.Buffer{}, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, "client", "tenant", "server", &bytes.Buffer{}, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, func(_ context.Context, _ *oauth2.Token, _, _, _ string) (oauth2.Token, error) {
 		return oauth2.Token{}, errors.New("exchange-failed")
@@ -95,7 +95,7 @@ func TestWriteCredentialsReturnsWriterError(t *testing.T) {
 	provider := &mockTokenProvider{token: &oauth2.Token{AccessToken: "source-token"}}
 	writer := &mockExecCredentialWriter{writerErr: errors.New("write-failed")}
 
-	err := writeCredentials(&auth.Options{}, "client", "tenant", "server", &bytes.Buffer{}, func(*auth.Options) (tokenProvider, error) {
+	err := writeCredentials(t.Context(), &auth.Options{}, "client", "tenant", "server", &bytes.Buffer{}, func(context.Context, *auth.Options) (tokenProvider, error) {
 		return provider, nil
 	}, func(_ context.Context, _ *oauth2.Token, _, _, _ string) (oauth2.Token, error) {
 		return oauth2.Token{AccessToken: "azure-token"}, nil

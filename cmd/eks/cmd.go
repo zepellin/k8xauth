@@ -27,7 +27,7 @@ and needs to manage external AWS EKS cluster(s)`,
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 
-		getCredentials(&options, rolearn, cluster, stsregion)
+		getCredentials(cmd.Context(), &options, rolearn, cluster, stsregion)
 	},
 }
 

@@ -26,7 +26,7 @@ k8xauth generic-oidc --authsource aks --audience "api://custom-app/.default"`,
 			PrintSourceToken: cmd.Flag("printsourceauthtoken").Value.String() == "true",
 		}
 
-		getCredentials(&options)
+		getCredentials(cmd.Context(), &options)
 	},
 }
 

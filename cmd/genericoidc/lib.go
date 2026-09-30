@@ -1,6 +1,7 @@
 package genericoidc
 
 import (
+	"context"
 	"fmt"
 	"io"
 	auth "k8xauth/internal/auth"
@@ -20,20 +21,20 @@ type execCredentialWriter interface {
 	Write(token oauth2.Token, writer ...io.Writer) error
 }
 
-func defaultTokenProviderFactory(o *auth.Options) (tokenProvider, error) {
-	return auth.New(o)
+func defaultTokenProviderFactory(ctx context.Context, o *auth.Options) (tokenProvider, error) {
+	return auth.New(ctx, o)
 }
 
-func getCredentials(o *auth.Options) {
-	err := writeCredentials(o, os.Stdout, defaultTokenProviderFactory, &credwriter.ExecCredentialWriter{})
+func getCredentials(ctx context.Context, o *auth.Options) {
+	err := writeCredentials(ctx, o, os.Stdout, defaultTokenProviderFactory, &credwriter.ExecCredentialWriter{})
 	if err != nil {
 		logger.Log.Error(err.Error())
 		os.Exit(1)
 	}
 }
 
-func writeCredentials(o *auth.Options, output io.Writer, authFactory func(*auth.Options) (tokenProvider, error), writer execCredentialWriter) error {
-	authSource, err := authFactory(o)
+func writeCredentials(ctx context.Context, o *auth.Options, output io.Writer, authFactory func(context.Context, *auth.Options) (tokenProvider, error), writer execCredentialWriter) error {
+	authSource, err := authFactory(ctx, o)
 	if err != nil {
 		return fmt.Errorf("failed to initialize source authentication: %w", err)
 	}

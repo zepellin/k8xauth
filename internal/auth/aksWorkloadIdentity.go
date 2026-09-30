@@ -2,10 +2,9 @@ package auth
 
 import (
 	"k8xauth/internal/logger"
-	"time"
 
 	"context"
-	"fmt"
+	"crypto/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -57,7 +56,7 @@ func aksWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth,
 
 		clientAuth := clientAuth{
 			platform:               "azure",
-			sessionIdentifier:      fmt.Sprintf("%s-%s", "k8xauth", fmt.Sprint(time.Now().UnixNano()))[:32],
+			sessionIdentifier:      "k8xauth-" + rand.Text()[:24],
 			tokenSource:            &azureTokenSource,
 			identityTokenRetriever: identityTokenRetriever{token: []byte(identityToken.AccessToken)},
 		}
