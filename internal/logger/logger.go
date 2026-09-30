@@ -14,8 +14,9 @@ func New(logLevel, logFormat, logFile string) {
 	var level slog.Level
 	var w *os.File
 
+	// stdout is reserved for the ExecCredential consumed by kubectl.
 	if logFile == "" {
-		w = os.Stdout
+		w = os.Stderr
 	} else {
 		f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {

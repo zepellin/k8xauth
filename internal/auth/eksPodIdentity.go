@@ -75,20 +75,19 @@ func jwtFileTokenSource(tokenFilePath string) (oauth2.TokenSource, error) {
 		return nil, fmt.Errorf("failed to parse token JWT: %w", err)
 	}
 
-	var claims map[string]any
+	var claims jwt.Claims
 	if err := t.UnsafeClaimsWithoutVerification(&claims); err != nil {
 		return nil, fmt.Errorf("failed to extract claims from token: %w", err)
 	}
 
-	exp, ok := claims["exp"]
-	if !ok {
+	if claims.Expiry == nil {
 		return nil, errors.New("token JWT has no exp claim")
 	}
 
 	staticTS := oauth2.StaticTokenSource(&oauth2.Token{
 		AccessToken: string(token),
 		TokenType:   "Bearer",
-		Expiry:      time.Unix(int64(exp.(float64)), 0),
+		Expiry:      claims.Expiry.Time(),
 	})
 
 	return oauth2.ReuseTokenSourceWithExpiry(nil, staticTS, 60*time.Second), nil

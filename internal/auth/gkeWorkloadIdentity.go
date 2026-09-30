@@ -51,9 +51,10 @@ func gkeWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth,
 			logger.Log.Debug("Couldn't fetch Hostname from GCP metadata server")
 		}
 
-		identitiyToken, err := gcpTokenSource.Token()
+		identityToken, err := gcpTokenSource.Token()
 		if err != nil {
-			logger.Log.Debug("Couldn't fetch identity token from GCP metadata server")
+			logger.Log.Debug("Couldn't fetch identity token from GCP metadata server", "error", err)
+			return nil, err
 		}
 
 		sessionIdentifier := projectId + "-" + hostname
@@ -61,7 +62,7 @@ func gkeWorkloadIdentityAuth(ctx context.Context, audience string) (*clientAuth,
 			platform:               "gcp",
 			sessionIdentifier:      sessionIdentifier[:min(len(sessionIdentifier), 32)],
 			tokenSource:            &gcpTokenSource,
-			identityTokenRetriever: identityTokenRetriever{token: []byte(identitiyToken.AccessToken)},
+			identityTokenRetriever: identityTokenRetriever{token: []byte(identityToken.AccessToken)},
 		}
 		return &clientAuth, nil
 	}

@@ -154,7 +154,7 @@ func (ac *clientAuth) PrettyPrintJWTToken(w io.Writer) error {
 	}
 	tk, err := (*ac.tokenSource).Token()
 	if err != nil {
-		logger.Log.Info("Error retrieving token: " + err.Error())
+		return fmt.Errorf("error retrieving token: %w", err)
 	}
 	token := tk.AccessToken
 
