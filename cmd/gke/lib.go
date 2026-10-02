@@ -9,20 +9,16 @@ import (
 	auth "k8xauth/internal/auth"
 	"k8xauth/internal/credwriter"
 	"os"
-	"time"
-
-	"google.golang.org/api/iamcredentials/v1"
 
 	"golang.org/x/oauth2"
-	"google.golang.org/api/option"
-	"google.golang.org/api/sts/v1"
+	"golang.org/x/oauth2/google/externalaccount"
 )
 
 const (
-	GRANT_TYPE           = "urn:ietf:params:oauth:grant-type:token-exchange"
-	REQUESTED_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
-	SUBJECT_TOKEN_TYPE   = "urn:ietf:params:oauth:token-type:jwt"
-	SCOPE                = "https://www.googleapis.com/auth/cloud-platform"
+	SUBJECT_TOKEN_TYPE         = "urn:ietf:params:oauth:token-type:jwt"
+	SCOPE                      = "https://www.googleapis.com/auth/cloud-platform"
+	IMPERSONATION_URL_TEMPLATE = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+	AUDIENCE_TEMPLATE          = "//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s"
 )
 
 type tokenProvider interface {
@@ -34,62 +30,40 @@ type execCredentialWriter interface {
 	Write(token oauth2.Token, writer ...io.Writer) error
 }
 
-type stsExchangeResult struct {
-	AccessToken string
-	ExpiresIn   int64
+// sourceTokenSupplier feeds the source identity token into the GCP STS token exchange.
+type sourceTokenSupplier struct {
+	source tokenProvider
+}
+
+func (s sourceTokenSupplier) SubjectToken(_ context.Context, _ externalaccount.SupplierOptions) (string, error) {
+	token, err := s.source.Token()
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve source token: %w", err)
+	}
+	return token.AccessToken, nil
 }
 
 func defaultTokenProviderFactory(ctx context.Context, o *auth.Options) (tokenProvider, error) {
 	return auth.New(ctx, o)
 }
 
-func defaultSTSExchange(ctx context.Context, identityToken oauth2.Token, idProvider string) (stsExchangeResult, error) {
-	stsExchangeTokenRequest := sts.GoogleIdentityStsV1ExchangeTokenRequest{
-		GrantType:          GRANT_TYPE,
-		RequestedTokenType: REQUESTED_TOKEN_TYPE,
-		SubjectTokenType:   SUBJECT_TOKEN_TYPE,
-		Audience:           idProvider,
-		Scope:              SCOPE,
-		SubjectToken:       identityToken.AccessToken,
+// newExternalAccountConfig builds the GCP Workload Identity Federation config. When gcpServiceAccount is set,
+// the STS token is additionally exchanged for an access token of that service account.
+func newExternalAccountConfig(projectId, poolId, providerId, gcpServiceAccount string) externalaccount.Config {
+	conf := externalaccount.Config{
+		Audience:         fmt.Sprintf(AUDIENCE_TEMPLATE, projectId, poolId, providerId),
+		SubjectTokenType: SUBJECT_TOKEN_TYPE,
+		Scopes:           []string{SCOPE},
 	}
-
-	gcpStsService, err := sts.NewService(ctx, option.WithoutAuthentication())
-	if err != nil {
-		return stsExchangeResult{}, err
+	if gcpServiceAccount != "" {
+		conf.ServiceAccountImpersonationURL = fmt.Sprintf(IMPERSONATION_URL_TEMPLATE, gcpServiceAccount)
 	}
-
-	gcpStsV1Service := sts.NewV1Service(gcpStsService)
-	stsToken, err := gcpStsV1Service.Token(&stsExchangeTokenRequest).Do()
-	if err != nil {
-		return stsExchangeResult{}, err
-	}
-
-	return stsExchangeResult{AccessToken: stsToken.AccessToken, ExpiresIn: stsToken.ExpiresIn}, nil
-}
-
-func defaultServiceAccountTokenExchange(ctx context.Context, stsOAuthToken oauth2.Token, gcpServiceAccount string) (oauth2.Token, error) {
-	config := &oauth2.Config{}
-	iamCredentialsService, err := iamcredentials.NewService(ctx, option.WithTokenSource(config.TokenSource(ctx, &stsOAuthToken)))
-	if err != nil {
-		return oauth2.Token{}, err
-	}
-
-	accessTokenRequest := iamcredentials.GenerateAccessTokenRequest{
-		Lifetime: "3600s",
-		Scope:    []string{SCOPE},
-	}
-
-	gcpCredentials, err := iamCredentialsService.Projects.ServiceAccounts.GenerateAccessToken("projects/-/serviceAccounts/"+gcpServiceAccount, &accessTokenRequest).Do()
-	if err != nil {
-		return oauth2.Token{}, err
-	}
-
-	return oauth2.Token{AccessToken: gcpCredentials.AccessToken}, nil
+	return conf
 }
 
 func getCredentials(ctx context.Context, o *auth.Options, projectId, poolId, providerId, gcpServiceAccount string) {
-	idProvider := fmt.Sprintf("//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s", projectId, poolId, providerId)
-	err := writeCredentials(ctx, o, idProvider, gcpServiceAccount, os.Stdout, defaultTokenProviderFactory, defaultSTSExchange, defaultServiceAccountTokenExchange, &credwriter.ExecCredentialWriter{})
+	conf := newExternalAccountConfig(projectId, poolId, providerId, gcpServiceAccount)
+	err := writeCredentials(ctx, o, conf, os.Stdout, defaultTokenProviderFactory, &credwriter.ExecCredentialWriter{})
 	if err != nil {
 		logger.Log.Error(err.Error())
 		os.Exit(1)
@@ -99,11 +73,9 @@ func getCredentials(ctx context.Context, o *auth.Options, projectId, poolId, pro
 func writeCredentials(
 	ctx context.Context,
 	o *auth.Options,
-	idProvider, gcpServiceAccount string,
+	conf externalaccount.Config,
 	output io.Writer,
 	authFactory func(context.Context, *auth.Options) (tokenProvider, error),
-	stsExchange func(context.Context, oauth2.Token, string) (stsExchangeResult, error),
-	serviceAccountExchange func(context.Context, oauth2.Token, string) (oauth2.Token, error),
 	writer execCredentialWriter,
 ) error {
 	authSource, err := authFactory(ctx, o)
@@ -119,40 +91,18 @@ func writeCredentials(
 		}
 	}
 
-	identityToken, err := authSource.Token()
+	conf.SubjectTokenSupplier = sourceTokenSupplier{source: authSource}
+	ts, err := externalaccount.NewTokenSource(ctx, conf)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve source token: %w", err)
+		return fmt.Errorf("failed to configure GCP workload identity federation: %w", err)
 	}
 
-	stsToken, err := stsExchange(ctx, *identityToken, idProvider)
+	gcpToken, err := ts.Token()
 	if err != nil {
-		return fmt.Errorf("failed to exchange source token with GCP STS: %w", err)
+		return fmt.Errorf("failed to exchange source token for GCP access token: %w", err)
 	}
 
-	if gcpServiceAccount == "" {
-		if err := writer.Write(oauth2.Token{
-			AccessToken: stsToken.AccessToken,
-			Expiry:      time.Now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
-		}, output); err != nil {
-			return fmt.Errorf("failed to write exec credential: %w", err)
-		}
-		return nil
-	}
-
-	stsOauthToken := oauth2.Token{
-		AccessToken: stsToken.AccessToken,
-		Expiry:      time.Now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
-	}
-
-	gcpCredentials, err := serviceAccountExchange(ctx, stsOauthToken, gcpServiceAccount)
-	if err != nil {
-		return fmt.Errorf("failed to exchange STS token for GCP service account credentials: %w", err)
-	}
-
-	if err := writer.Write(oauth2.Token{
-		AccessToken: gcpCredentials.AccessToken,
-		Expiry:      time.Now().Add(time.Second * time.Duration(stsToken.ExpiresIn)),
-	}, output); err != nil {
+	if err := writer.Write(*gcpToken, output); err != nil {
 		return fmt.Errorf("failed to write exec credential: %w", err)
 	}
 
