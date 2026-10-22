@@ -73,7 +73,7 @@ require (
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.43.0 // indirect
-	google.golang.org/api v0.307.0
+	google.golang.org/api v0.308.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/utils v0.0.0-20260626114624-be93311217bd // indirect
